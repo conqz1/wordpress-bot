@@ -83,6 +83,7 @@ def _inject_ids(elements: list, url_to_id: dict) -> None:
         bg = settings.get("background_image")
         if isinstance(bg, dict) and bg.get("url") in url_to_id:
             bg["id"] = url_to_id[bg["url"]]
+            bg["source"] = "library"
 
         if el.get("elements"):
             _inject_ids(el["elements"], url_to_id)
