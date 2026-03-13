@@ -1,10 +1,8 @@
 """
 Downloads images from their original URLs and uploads them to the
 WordPress media library via the REST API.
-Returns a mapping of placeholder_id → {url, id} so Elementor can
-render background images correctly (requires both fields).
+Returns a mapping of placeholder_id → {url, id} for use in block content replacement.
 """
-import json
 import mimetypes
 import os
 import re
@@ -47,46 +45,14 @@ def upload_images(images: list[dict]) -> dict[str, dict]:
     return mapping
 
 
-def replace_image_placeholders(elementor_data: list, mapping: dict[str, dict]) -> list:
+def replace_image_placeholders(block_content: str, mapping: dict[str, dict]) -> str:
     """
-    Walk the Elementor JSON and replace all __IMG_<placeholder_id>__ URL strings
-    with the real WordPress media URL, then inject the attachment id into any
-    image/background_image objects that contain that URL.
+    Replace all __IMG_<placeholder_id>__ strings in the Gutenberg block markup
+    with the real WordPress media URL.
     """
-    data_str = json.dumps(elementor_data)
-
-    # Replace placeholder URL strings
     for placeholder_id, media in mapping.items():
-        data_str = data_str.replace(f"__IMG_{placeholder_id}__", media["url"])
-
-    data = json.loads(data_str)
-
-    # Build a reverse lookup: url → id
-    url_to_id = {m["url"]: m["id"] for m in mapping.values() if m["id"]}
-
-    # Walk the tree and inject attachment ids
-    _inject_ids(data, url_to_id)
-    return data
-
-
-def _inject_ids(elements: list, url_to_id: dict) -> None:
-    """Recursively find image/background_image objects and set their id field."""
-    for el in elements:
-        settings = el.get("settings", {})
-
-        # Widget image setting
-        img = settings.get("image")
-        if isinstance(img, dict) and img.get("url") in url_to_id:
-            img["id"] = url_to_id[img["url"]]
-
-        # Section background image
-        bg = settings.get("background_image")
-        if isinstance(bg, dict) and bg.get("url") in url_to_id:
-            bg["id"] = url_to_id[bg["url"]]
-            bg["source"] = "library"
-
-        if el.get("elements"):
-            _inject_ids(el["elements"], url_to_id)
+        block_content = block_content.replace(f"__IMG_{placeholder_id}__", media["url"])
+    return block_content
 
 
 def _download_and_upload(url: str) -> tuple[str, int]:
@@ -111,7 +77,10 @@ def _download_and_upload(url: str) -> tuple[str, int]:
             upload_resp = requests.post(
                 _MEDIA_ENDPOINT,
                 auth=_AUTH,
-                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "User-Agent": _HEADERS["User-Agent"],
+                },
                 files={"file": (filename, f, content_type)},
                 timeout=30,
             )

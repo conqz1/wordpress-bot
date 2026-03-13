@@ -1,10 +1,9 @@
 """
 Sends the page screenshot + (truncated) HTML to Claude Vision and asks it
-to return a structured Elementor JSON payload.
+to return a structured Gutenberg block markup payload.
 """
 import json
 import re
-import uuid
 
 import anthropic
 
@@ -15,123 +14,173 @@ _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 # Maximum HTML characters to send (keep prompt within token budget)
 _HTML_LIMIT = 20_000
 
-SYSTEM_PROMPT = """You are an expert Elementor page builder developer.
-Analyze the webpage screenshot and HTML carefully, then produce valid Elementor JSON
+SYSTEM_PROMPT = """You are an expert WordPress Gutenberg developer.
+Analyze the webpage screenshot and HTML carefully, then produce valid WordPress Gutenberg block markup
 that recreates the page as accurately and completely as possible.
 
 Return ONLY a valid JSON object — no markdown fences, no explanation, nothing else. Shape:
 {
   "page_title": "<page title>",
-  "page_status": "draft",
-  "elementor_data": [ ...array of section elements... ],
+  "block_content": "<full WordPress Gutenberg block markup as a single JSON-escaped string>",
   "images": [
     { "original_url": "<url>", "placeholder_id": "<unique short string>" }
   ]
 }
 
-━━━ ELEMENTOR JSON STRUCTURE ━━━
+━━━ BLOCK MARKUP FORMAT ━━━
 
-Every element: { "id": "<8-char hex>", "elType": "...", "settings": {}, "elements": [] }
-Hierarchy: section → column → widget  (NEVER nest sections inside sections)
+Blocks use HTML comment delimiters. In the JSON string, escape all double quotes as \\" and use \\n for newlines.
 
-━━━ WIDGET TYPES ━━━
+━━━ FULL-WIDTH RULE (CRITICAL) ━━━
 
-heading:     { "title": "text", "header_size": "h1|h2|h3|h4|h5|h6",
-               "align": "left|center|right", "title_color": "#hex",
-               "typography_font_size": {"unit":"px","size":36},
-               "typography_font_weight": "700" }
-text-editor: { "editor": "<p>HTML content</p>" }
-image:       { "image": {"url": "__IMG_pid__", "id": 0, "alt": "text", "source": "library"},
-               "align": "left|center|right", "image_size": "full" }
-button:      { "text": "label", "link": {"url": "#"},
-               "align": "left|center|right",
-               "background_color": "#hex", "button_text_color": "#hex",
-               "border_radius": {"unit":"px","top":"4","right":"4","bottom":"4","left":"4","isLinked":true} }
-spacer:      { "space": {"size": 40, "unit": "px"} }
-divider:     { "color": {"color": "#hex"} }
-html:        { "html": "<div style='...'>...</div>" }
-icon-box:    { "title_text": "...", "description_text": "...", "icon": {"value":"fas fa-bolt","library":"fa-solid"} }
+Every top-level block MUST span the full page width. Without this, the theme will crush content
+into a narrow centered column. Add "align":"full" to every top-level wp:group and wp:cover.
+Add "align":"wide" to every top-level wp:columns. These are mandatory on ALL top-level blocks.
 
-━━━ SECTION WITH BACKGROUND IMAGE — EXACT FORMAT ━━━
+━━━ CORE BLOCKS ━━━
 
-Use this EXACT structure for ANY section where a photo/image fills the background:
+HEADING (h1–h6):
+<!-- wp:heading {"level":2,"style":{"color":{"text":"#hex"}}} -->
+<h2 class="wp-block-heading" style="color:#hex">Heading text</h2>
+<!-- /wp:heading -->
 
-{
-  "id": "xxxxxxxx",
-  "elType": "section",
-  "settings": {
-    "background_background": "classic",
-    "background_image": {
-      "url": "__IMG_hero_bg__",
-      "id": 0,
-      "size": "",
-      "alt": "",
-      "source": "library"
-    },
-    "background_size": "cover",
-    "background_position": "center center",
-    "background_repeat": "no-repeat",
-    "background_attachment": "scroll",
-    "min_height": {"unit": "px", "size": 650},
-    "padding": {"unit":"px","top":"80","right":"40","bottom":"80","left":"40","isLinked":false}
-  },
-  "elements": [ ...columns... ]
-}
+PARAGRAPH:
+<!-- wp:paragraph {"style":{"color":{"text":"#hex"},"typography":{"fontSize":"18px"}}} -->
+<p style="color:#hex;font-size:18px">Paragraph text here.</p>
+<!-- /wp:paragraph -->
 
-CRITICAL: The "background_background": "classic" key MUST be present. Without it, the image will not display.
+IMAGE:
+<!-- wp:image {"id":0,"sizeSlug":"large"} -->
+<figure class="wp-block-image size-large"><img src="__IMG_placeholder__" alt="Description"/></figure>
+<!-- /wp:image -->
 
-━━━ SECTION WITH FLAT COLOR ━━━
-{ "background_color": "#hex", "padding": {"unit":"px","top":"60","right":"0","bottom":"60","left":"0","isLinked":false} }
+COVER (hero / section with background image) — always alignfull at top level:
+<!-- wp:cover {"url":"__IMG_hero__","id":0,"dimRatio":30,"minHeight":500,"minHeightUnit":"px","align":"full"} -->
+<div class="wp-block-cover alignfull" style="min-height:500px">
+<span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="background-color:#000000;opacity:0.3"></span>
+<img class="wp-block-cover__image-background" alt="" src="__IMG_hero__" data-object-fit="cover"/>
+<div class="wp-block-cover__inner-container">
+<!-- wp:heading {"textAlign":"center","level":1,"style":{"color":{"text":"#ffffff"}}} -->
+<h1 class="wp-block-heading has-text-align-center" style="color:#ffffff">Hero Title</h1>
+<!-- /wp:heading -->
+<!-- wp:paragraph {"align":"center","style":{"color":{"text":"#ffffff"}}} -->
+<p class="has-text-align-center" style="color:#ffffff">Subtitle text here</p>
+<!-- /wp:paragraph -->
+</div>
+</div>
+<!-- /wp:cover -->
 
-━━━ COLUMN SETTINGS ━━━
-"_column_size": 100 | 66 | 60 | 50 | 40 | 33 | 25
+GROUP (section with background color) — always alignfull at top level:
+<!-- wp:group {"align":"full","style":{"color":{"background":"#1a1a2e"},"spacing":{"padding":{"top":"60px","bottom":"60px","left":"40px","right":"40px"}}},"layout":{"type":"constrained"}} -->
+<div class="wp-block-group alignfull has-background" style="background-color:#1a1a2e;padding-top:60px;padding-bottom:60px;padding-left:40px;padding-right:40px">
+<!-- inner blocks go here -->
+</div>
+<!-- /wp:group -->
+
+COLUMNS (2, 3, or 4 column layout) — use alignwide at top level:
+<!-- wp:columns {"align":"wide"} -->
+<div class="wp-block-columns alignwide">
+<!-- wp:column {"width":"50%"} -->
+<div class="wp-block-column" style="flex-basis:50%">
+<!-- column content blocks -->
+</div>
+<!-- /wp:column -->
+<!-- wp:column {"width":"50%"} -->
+<div class="wp-block-column" style="flex-basis:50%">
+<!-- column content blocks -->
+</div>
+<!-- /wp:column -->
+</div>
+<!-- /wp:columns -->
+
+BUTTONS:
+<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
+<div class="wp-block-buttons">
+<!-- wp:button {"style":{"color":{"background":"#hex","text":"#fff"},"border":{"radius":"4px"}}} -->
+<div class="wp-block-button"><a class="wp-block-button__link has-text-color has-background wp-element-button" href="#" style="border-radius:4px;background-color:#hex;color:#fff">Button Text</a></div>
+<!-- /wp:button -->
+</div>
+<!-- /wp:buttons -->
+
+SEPARATOR:
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+SPACER:
+<!-- wp:spacer {"height":"40px"} -->
+<div style="height:40px" aria-hidden="true" class="wp-block-spacer"></div>
+<!-- /wp:spacer -->
+
+HTML (raw custom HTML — use for complex elements: forms, nav bars, rating widgets, icon grids):
+<!-- wp:html -->
+<div style="width:100%;box-sizing:border-box;">Your custom HTML here</div>
+<!-- /wp:html -->
 
 ━━━ IMAGE PLACEHOLDERS ━━━
-- Every image needs a short unique placeholder_id (e.g. "hero_bg", "logo", "img1").
-- Use "__IMG_placeholder_id__" as the url value in BOTH widget images AND section background_image.
-- List EVERY image in the top-level "images" array with its original_url and placeholder_id.
-- The system will upload images to WordPress and replace placeholders with real URLs + IDs.
+- Every image needs a short unique placeholder_id (e.g. "hero_bg", "logo", "img1")
+- Use "__IMG_placeholder_id__" as the src/url wherever an image appears in blocks
+- List EVERY image in the top-level "images" array with its original_url and placeholder_id
+- The system will upload images to WordPress and replace placeholders with real URLs
+- CRITICAL: original_url must be a direct image file URL (ending in .jpg, .png, .webp, .gif, .svg, etc.)
+- NEVER put a webpage URL (e.g. https://example.com/) as an original_url — only real image file URLs
 
-━━━ LAYOUT PATTERNS TO RECOGNIZE ━━━
+━━━ LAYOUT PATTERNS ━━━
 
-TOP HEADER BAR (ratings + logo + phone pattern):
-  → 1 section, 3 columns (33/33/33):
-    Col 1: html widget with star rating and review count
-    Col 2: image widget with logo
-    Col 3: html widget with phone number and CTA button
+TOP HEADER BAR (ratings + logo + phone):
+→ wp:group align:"full" (background color matching the bar)
+  → wp:columns align:"wide" (3 equal columns ~33/33/33)
+    Left col: wp:html — star rating and review count, white-space:nowrap on key elements
+    Center col: wp:image with logo
+    Right col: wp:html — phone number and CTA button, white-space:nowrap on key elements
 
-NAVIGATION BAR (horizontal menu bar with colored background):
-  → 1 section with background_color matching the nav color
-  → 1 full-width column
-  → 1 html widget containing <nav> with inline-styled links
+NAVIGATION BAR (horizontal menu):
+→ wp:group align:"full" (background color matching the nav)
+  → wp:html — <nav> with display:flex, flex-wrap:nowrap, all items inline, no text wrapping
 
-HERO SECTION (large photo background with text + form):
-  → 1 section with background_background="classic" + background_image
-  → 2 columns (60% left, 40% right):
-    Left col: heading, text-editor (bullet points), button widgets
-    Right col: html widget with styled form
+HERO SECTION (large background image with text):
+→ wp:cover align:"full" with background image, appropriate dimRatio
+  → wp:heading (main headline, large, bold)
+  → wp:paragraph (supporting text / bullet list)
+  → wp:buttons (call to action)
+  → wp:html (contact form if present, fully inline-styled)
 
-SERVICES GRID (3 or 4 cards in a row):
-  → 1 section, multiple equal columns, each with icon-box or html widget
+SERVICES / FEATURES GRID (3–4 cards in a row):
+→ wp:group align:"full" (section background)
+  → wp:columns align:"wide" (3 or 4 equal columns)
+    Each column: wp:html for fully styled card
+
+CONTENT BAND (text + image side by side):
+→ wp:group align:"full"
+  → wp:columns align:"wide" (60/40 or 50/50)
+    Left: wp:heading, wp:paragraph
+    Right: wp:image
+
+FOOTER:
+→ wp:group align:"full" (dark background)
+  → wp:columns align:"wide" for multi-column footer
+  → wp:paragraph for copyright
 
 ━━━ ACCURACY RULES ━━━
-1. HERO: Use background_background="classic" on the SECTION — never an image widget for backgrounds.
-2. COPY ALL TEXT exactly as shown — headings, subheadings, phone numbers, bullets, CTAs.
-3. COLORS: Match exact hex colors from screenshot for backgrounds, text, buttons, nav bars.
-4. COLUMN WIDTHS: Match proportions — 60/40 split, 33/33/33, etc.
-5. HEADER: Recreate the top bar (ratings, logo, phone) as 3 separate columns.
-6. NAV BAR: Recreate as an html widget with the correct background color and all menu items.
-7. FORMS: Use html widget with inline-styled inputs matching the original appearance.
-8. RATINGS: Use html widget — include the number (e.g. 4.9), stars (★), and review count.
-9. One section per distinct horizontal band.
-10. Do NOT skip any visible section — recreate the ENTIRE page from top to bottom.
+1. DO NOT add a heading block for the page title — WordPress already displays it from the title field
+2. Start block_content with the FIRST real content section (header bar, nav, or hero)
+3. Add "align":"full" to EVERY top-level wp:group and wp:cover — this is non-negotiable
+4. Add "align":"wide" to EVERY top-level wp:columns
+5. COPY ALL TEXT exactly as shown in the screenshot — headings, body, phone numbers, CTAs
+6. MATCH colors with exact hex values using inline styles on every block
+7. USE wp:cover for ANY section that has a background photo/image
+8. USE wp:group with background-color for solid-color section bands
+9. USE wp:html for complex elements: navigation bars, forms, icon grids, star ratings
+10. In wp:html blocks add white-space:nowrap to phone numbers, button text, and short labels
+11. Recreate the ENTIRE page top to bottom — do NOT skip any section
+12. The block_content JSON string must be properly escaped (quotes as \\", newlines as \\n)
 """
 
 
 def analyze(screenshot_b64: str, html: str, url: str) -> dict:
     """
     Call Claude Vision with the screenshot and HTML.
-    Returns parsed dict: { page_title, page_status, elementor_data, images }
+    Returns parsed dict: { page_title, block_content, images }
     """
     truncated_html = _truncate_html(html)
 
@@ -160,7 +209,7 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
                             f"Page URL: {url}\n\n"
                             f"HTML (truncated to {_HTML_LIMIT} chars):\n"
                             f"{truncated_html}\n\n"
-                            "Generate the Elementor JSON now."
+                            "Generate the Gutenberg block markup now."
                         ),
                     },
                 ],
@@ -187,14 +236,15 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
     raw = "".join(raw_chunks).strip()
     result = _parse_json(raw)
 
-    result["elementor_data"] = _assign_ids(result.get("elementor_data", []))
     result["_usage"] = {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cost_usd": cost_usd,
     }
 
-    print(f"[ai] Analysis complete. Sections: {len(result['elementor_data'])} | Images: {len(result.get('images', []))}")
+    block_content = result.get("block_content", "")
+    block_count = len(re.findall(r"<!-- wp:", block_content))
+    print(f"[ai] Analysis complete. Blocks: {block_count} | Images: {len(result.get('images', []))}")
     return result
 
 
@@ -269,13 +319,3 @@ def _repair_truncated_json(text: str) -> str:
         stripped += "}" if opener == "{" else "]"
 
     return stripped
-
-
-def _assign_ids(elements: list) -> list:
-    """Recursively ensure every element has a valid 8-char hex id."""
-    for el in elements:
-        if not el.get("id") or len(el["id"]) < 4:
-            el["id"] = uuid.uuid4().hex[:8]
-        if el.get("elements"):
-            el["elements"] = _assign_ids(el["elements"])
-    return elements

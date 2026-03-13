@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Elementor Bot — Entry point.
+WordPress Site Bot — Entry point.
 
 Usage:
     python main.py --url https://example.com
@@ -12,7 +12,7 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrape a URL and recreate it as an Elementor page in WordPress."
+        description="Scrape a URL and recreate it as a Gutenberg page in WordPress."
     )
     parser.add_argument("--url", required=True, help="URL of the page to clone")
     parser.add_argument(
@@ -28,7 +28,7 @@ def main():
         print(f"ERROR: URL must start with http/https — got: {url}")
         sys.exit(1)
 
-    print("\n=== Elementor Bot ===\n")
+    print("\n=== WordPress Site Bot ===\n")
 
     # 1. Scrape
     from scraper.page import scrape
@@ -50,20 +50,23 @@ def main():
 
     # 4. Download + upload images
     from wordpress.media import upload_images, replace_image_placeholders
-    images = analysis.get("images", [])
+    _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".bmp", ".ico", ".avif")
+    images = [
+        img for img in analysis.get("images", [])
+        if any(img.get("original_url", "").lower().split("?")[0].endswith(ext) for ext in _IMAGE_EXTS)
+    ]
+    block_content = analysis.get("block_content", "")
     if images:
         print(f"[main] Uploading {len(images)} image(s) to WordPress media library...")
         mapping = upload_images(images)
-        elementor_data = replace_image_placeholders(analysis["elementor_data"], mapping)
-    else:
-        elementor_data = analysis["elementor_data"]
+        block_content = replace_image_placeholders(block_content, mapping)
 
-    # 5. Create Elementor page via WP REST API
-    from wordpress.api import create_elementor_page, get_edit_url
+    # 5. Create page via WP REST API
+    from wordpress.api import create_page, get_edit_url
     page_title = analysis.get("page_title") or page.title
-    wp_page = create_elementor_page(
+    wp_page = create_page(
         title=page_title,
-        elementor_data=elementor_data,
+        block_content=block_content,
         status=args.status,
     )
 
@@ -74,7 +77,7 @@ def main():
     print(f"  Page created: {page_title}")
     print(f"  Status:       {args.status}")
     print(f"  Live URL:     {live_url}")
-    print(f"  Edit in Elementor: {edit_url}")
+    print(f"  Edit in WP:   {edit_url}")
     print("=" * 50 + "\n")
 
 

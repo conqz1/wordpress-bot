@@ -1,8 +1,9 @@
 """
 Local Flask approval UI.
-Shows a screenshot of the scraped page and a summary of the Elementor
-layout that will be created. User can Approve or Skip.
+Shows a screenshot of the scraped page and a summary of the Gutenberg
+blocks that will be created. User can Approve or Skip.
 """
+import re
 import threading
 import webbrowser
 from flask import Flask, jsonify, render_template, request
@@ -64,8 +65,9 @@ def index():
     page = _state["page"]
     analysis = _state["analysis"]
 
-    # Build a widget summary for display
-    widget_summary = _build_widget_summary(analysis.get("elementor_data", []))
+    block_content = analysis.get("block_content", "")
+    widget_summary = _build_block_summary(block_content)
+    block_count = len(re.findall(r"<!-- wp:", block_content))
     images = analysis.get("images", [])
 
     usage = analysis.get("_usage", {})
@@ -76,7 +78,7 @@ def index():
         screenshot_data_uri=f"data:image/png;base64,{page.screenshot_b64}",
         widget_summary=widget_summary,
         image_count=len(images),
-        section_count=len(analysis.get("elementor_data", [])),
+        section_count=block_count,
         input_tokens=f"{usage.get('input_tokens', 0):,}",
         output_tokens=f"{usage.get('output_tokens', 0):,}",
         cost_usd=f"${usage.get('cost_usd', 0):.4f}",
@@ -100,36 +102,24 @@ def screenshot():
     return send_file(_state["page"].screenshot_path, mimetype="image/png")
 
 
-def _build_widget_summary(elementor_data: list) -> list[dict]:
-    """Flatten the Elementor tree into a human-readable summary list."""
+def _build_block_summary(block_content: str) -> list[dict]:
+    """Parse Gutenberg block markup into a human-readable summary grouped by top-level blocks."""
     summary = []
-    for i, section in enumerate(elementor_data, 1):
-        widgets = []
-        for col in section.get("elements", []):
-            for widget in col.get("elements", []):
-                wtype = widget.get("widgetType", widget.get("elType", "unknown"))
-                label = _widget_label(widget)
-                widgets.append({"type": wtype, "label": label})
-        summary.append({"section": i, "widgets": widgets})
+    depth = 0
+    section_num = 0
+
+    for match in re.finditer(r"<!--\s*(/?)wp:([\w/-]+)", block_content):
+        is_closing = bool(match.group(1))
+        block_type = match.group(2)
+
+        if is_closing:
+            depth = max(0, depth - 1)
+        else:
+            if depth == 0:
+                section_num += 1
+                summary.append({"section": section_num, "widgets": [{"type": block_type, "label": ""}]})
+            elif depth == 1 and summary:
+                summary[-1]["widgets"].append({"type": block_type, "label": ""})
+            depth += 1
+
     return summary
-
-
-def _widget_label(widget: dict) -> str:
-    settings = widget.get("settings", {})
-    wtype = widget.get("widgetType", "")
-    if wtype == "heading":
-        return settings.get("title", "")[:60]
-    if wtype == "text-editor":
-        import re
-        text = re.sub(r"<[^>]+>", "", settings.get("editor", ""))
-        return text[:60]
-    if wtype == "image":
-        return settings.get("image", {}).get("alt", "(image)")
-    if wtype == "button":
-        return settings.get("text", "")
-    if wtype == "spacer":
-        size = settings.get("space", {}).get("size", "")
-        return f"{size}px spacer"
-    if wtype == "html":
-        return "(raw HTML)"
-    return wtype
