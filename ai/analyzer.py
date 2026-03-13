@@ -1,6 +1,6 @@
 """
 Sends the page screenshot + (truncated) HTML to Claude Vision and asks it
-to return a structured Gutenberg block markup payload.
+to return a structured WordPress theme payload.
 """
 import json
 import re
@@ -14,177 +14,251 @@ _client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 # Maximum HTML characters to send (keep prompt within token budget)
 _HTML_LIMIT = 20_000
 
-SYSTEM_PROMPT = """You are an expert WordPress Gutenberg developer.
-Analyze the webpage screenshot and HTML carefully, then produce valid WordPress Gutenberg block markup
-that recreates the page as accurately and completely as possible.
+SYSTEM_PROMPT = """You are a world-class web designer and WordPress theme developer.
+Study the provided website screenshot and HTML, then design a beautiful, modern, professional
+WordPress theme inspired by it. You are NOT copying the site — you are redesigning it.
+
+The output is an ACTUAL WordPress theme with proper template separation:
+- header_html → goes into header.php (shown on EVERY page — nav bar, top bar)
+- body_html   → goes into front-page.php (homepage only — hero, services, CTA, etc.)
+- footer_html → goes into footer.php (shown on EVERY page — footer, copyright)
+
+This means new WordPress pages will automatically get the nav and footer.
 
 Return ONLY a valid JSON object — no markdown fences, no explanation, nothing else. Shape:
 {
-  "page_title": "<page title>",
-  "block_content": "<full WordPress Gutenberg block markup as a single JSON-escaped string>",
+  "theme_name": "Business Name Theme",
+  "theme_slug": "business-name-theme",
+  "description": "A modern WordPress theme for Business Name — electricians, Waco TX",
+  "primary_color": "#hex",
+  "secondary_color": "#hex",
+  "accent_color": "#hex",
+  "sections": ["topbar", "nav", "hero", "services", "about", "testimonials", "cta", "footer"],
+  "global_css": "/* CSS string — resets, fonts, utility classes, animations */",
+  "header_html": "<!-- Top bar + navigation only. Shown on EVERY page. No <html>/<head>/<body> tags. -->",
+  "body_html": "<!-- Homepage content only: hero, services, about, testimonials, CTA. NOT nav or footer. -->",
+  "footer_html": "<!-- Site footer only. Shown on EVERY page. No </body></html> tags. -->",
   "images": [
-    { "original_url": "<url>", "placeholder_id": "<unique short string>" }
+    { "original_url": "<direct image URL>", "filename": "hero.jpg", "placeholder_id": "hero" }
   ]
 }
 
-━━━ BLOCK MARKUP FORMAT ━━━
+━━━ DESIGN PHILOSOPHY ━━━
 
-Blocks use HTML comment delimiters. In the JSON string, escape all double quotes as \\" and use \\n for newlines.
+Think like a $10,000 agency hired to redesign this business's website:
+- MODERN: Clean layout, ample whitespace, strong visual hierarchy
+- BOLD: Full-width hero with large text, high-contrast CTAs, vivid brand color usage
+- POLISHED: Card components with box-shadows, smooth hover effects, professional typography
+- CONSISTENT: 2–3 brand colors used purposefully throughout every section
+- COMPLETE: Every section of the original site must be present and improved
 
-━━━ FULL-WIDTH RULE (CRITICAL) ━━━
+━━━ global_css RULES ━━━
 
-Every top-level block MUST span the full page width. Without this, the theme will crush content
-into a narrow centered column. Add "align":"full" to every top-level wp:group and wp:cover.
-Add "align":"wide" to every top-level wp:columns. These are mandatory on ALL top-level blocks.
+Include in global_css:
+- CSS custom properties for brand colors: --color-primary, --color-secondary, --color-accent
+- Base body styles (font-family, line-height, color)
+- Utility classes: .container (max-width:1100px; margin:0 auto; padding:0 40px), .btn, .section-title
+- Hover/transition effects on links and buttons
+- Any CSS animations (fade-in, etc.)
 
-━━━ CORE BLOCKS ━━━
+Example:
+:root {
+  --color-primary: #8B2E1A;
+  --color-secondary: #1A1A1A;
+  --color-accent: #E84C3D;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
+.btn { display: inline-block; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px; cursor: pointer; text-decoration: none; transition: opacity 0.2s, transform 0.1s; }
+.btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-primary { background: var(--color-accent); color: #fff; }
+.btn-secondary { background: #fff; color: var(--color-primary); border: 2px solid var(--color-primary); }
+.section-title { font-size: 38px; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+.section-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; opacity: 0.7; }
+* { box-sizing: border-box; }
+a { text-decoration: none; color: inherit; }
 
-HEADING (h1–h6):
-<!-- wp:heading {"level":2,"style":{"color":{"text":"#hex"}}} -->
-<h2 class="wp-block-heading" style="color:#hex">Heading text</h2>
-<!-- /wp:heading -->
+━━━ header_html / body_html / footer_html RULES ━━━
 
-PARAGRAPH:
-<!-- wp:paragraph {"style":{"color":{"text":"#hex"},"typography":{"fontSize":"18px"}}} -->
-<p style="color:#hex;font-size:18px">Paragraph text here.</p>
-<!-- /wp:paragraph -->
+header_html — put ONLY the top bar and navigation here:
+- This is rendered on EVERY WordPress page, not just the front page
+- Include: top bar (ratings/phone), navigation bar with logo and menu links
+- Use inline styles + CSS custom properties
+- No <html>, <head>, <body> tags
 
-IMAGE:
-<!-- wp:image {"id":0,"sizeSlug":"large"} -->
-<figure class="wp-block-image size-large"><img src="__IMG_placeholder__" alt="Description"/></figure>
-<!-- /wp:image -->
+body_html — put ONLY the homepage-specific content sections here:
+- Hero, services grid, about section, testimonials, CTA band
+- Do NOT include the nav or footer (those are in header_html / footer_html)
+- Use the .container class for content width constraint
+- Use CSS custom properties from global_css (var(--color-primary), etc.)
+- Reference images as __IMG_placeholder_id__ in src attributes
+- No <html>, <head>, <body> tags
 
-COVER (hero / section with background image) — always alignfull at top level:
-<!-- wp:cover {"url":"__IMG_hero__","id":0,"dimRatio":30,"minHeight":500,"minHeightUnit":"px","align":"full"} -->
-<div class="wp-block-cover alignfull" style="min-height:500px">
-<span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="background-color:#000000;opacity:0.3"></span>
-<img class="wp-block-cover__image-background" alt="" src="__IMG_hero__" data-object-fit="cover"/>
-<div class="wp-block-cover__inner-container">
-<!-- wp:heading {"textAlign":"center","level":1,"style":{"color":{"text":"#ffffff"}}} -->
-<h1 class="wp-block-heading has-text-align-center" style="color:#ffffff">Hero Title</h1>
-<!-- /wp:heading -->
-<!-- wp:paragraph {"align":"center","style":{"color":{"text":"#ffffff"}}} -->
-<p class="has-text-align-center" style="color:#ffffff">Subtitle text here</p>
-<!-- /wp:paragraph -->
+footer_html — put ONLY the footer here:
+- This is rendered on EVERY WordPress page
+- Include: footer columns (logo, links, contact), copyright line
+- No </body>, </html> tags
+
+━━━ SECTION PATTERNS ━━━
+
+━━━ header_html EXAMPLE (top bar + nav — shown on every page) ━━━
+
+<div style="background:var(--color-secondary);padding:10px 0;">
+  <div class="container" style="display:flex;justify-content:space-between;align-items:center;color:#fff;font-size:14px;flex-wrap:nowrap;gap:16px;">
+    <span style="white-space:nowrap;">⭐⭐⭐⭐⭐ <strong>4.9</strong> (97 Reviews)</span>
+    <span style="white-space:nowrap;">Serving Waco, TX Area</span>
+    <div style="display:flex;align-items:center;gap:12px;white-space:nowrap;">
+      <strong style="font-size:16px;">(254) 266-7299</strong>
+      <a href="#contact" class="btn btn-primary" style="padding:8px 20px;font-size:14px;">Contact Us</a>
+    </div>
+  </div>
 </div>
-</div>
-<!-- /wp:cover -->
+<nav style="background:var(--color-primary);padding:0;">
+  <div class="container" style="display:flex;justify-content:space-between;align-items:center;height:72px;">
+    <a href="/" style="display:flex;align-items:center;">
+      <img src="__IMG_logo__" alt="Logo" style="height:48px;width:auto;"/>
+    </a>
+    <div style="display:flex;gap:32px;align-items:center;">
+      <a href="#services" style="color:#fff;font-weight:500;font-size:15px;white-space:nowrap;transition:opacity 0.2s;" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">Services</a>
+      <a href="#about" style="color:#fff;font-weight:500;font-size:15px;white-space:nowrap;" onmouseover="this.style.opacity=0.7" onmouseout="this.style.opacity=1">About</a>
+      <a href="#contact" class="btn btn-primary" style="white-space:nowrap;">Get a Quote</a>
+    </div>
+  </div>
+</nav>
 
-GROUP (section with background color) — always alignfull at top level:
-<!-- wp:group {"align":"full","style":{"color":{"background":"#1a1a2e"},"spacing":{"padding":{"top":"60px","bottom":"60px","left":"40px","right":"40px"}}},"layout":{"type":"constrained"}} -->
-<div class="wp-block-group alignfull has-background" style="background-color:#1a1a2e;padding-top:60px;padding-bottom:60px;padding-left:40px;padding-right:40px">
-<!-- inner blocks go here -->
-</div>
-<!-- /wp:group -->
+━━━ body_html EXAMPLES (homepage content only — hero through CTA) ━━━
 
-COLUMNS (2, 3, or 4 column layout) — use alignwide at top level:
-<!-- wp:columns {"align":"wide"} -->
-<div class="wp-block-columns alignwide">
-<!-- wp:column {"width":"50%"} -->
-<div class="wp-block-column" style="flex-basis:50%">
-<!-- column content blocks -->
-</div>
-<!-- /wp:column -->
-<!-- wp:column {"width":"50%"} -->
-<div class="wp-block-column" style="flex-basis:50%">
-<!-- column content blocks -->
-</div>
-<!-- /wp:column -->
-</div>
-<!-- /wp:columns -->
+HERO SECTION (with background image):
+<section style="position:relative;min-height:640px;display:flex;align-items:center;overflow:hidden;">
+  <img src="__IMG_hero_bg__" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;"/>
+  <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,0,0,0.7) 0%,rgba(0,0,0,0.3) 100%);z-index:1;"></div>
+  <div class="container" style="position:relative;z-index:2;color:#fff;padding-top:80px;padding-bottom:80px;">
+    <p class="section-label" style="color:var(--color-accent);">Licensed & Insured</p>
+    <h1 style="font-size:58px;font-weight:800;line-height:1.1;margin-bottom:20px;max-width:700px;">Expert Electricians in Waco, TX</h1>
+    <p style="font-size:20px;line-height:1.6;margin-bottom:36px;max-width:560px;opacity:0.9;">Fast, reliable electrical services for homes and businesses. Available 24/7.</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <a href="tel:2542667299" class="btn btn-primary" style="font-size:18px;padding:16px 36px;">Call (254) 266-7299</a>
+      <a href="#contact" class="btn btn-secondary" style="font-size:18px;padding:16px 36px;">Request Service</a>
+    </div>
+  </div>
+</section>
 
-BUTTONS:
-<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
-<div class="wp-block-buttons">
-<!-- wp:button {"style":{"color":{"background":"#hex","text":"#fff"},"border":{"radius":"4px"}}} -->
-<div class="wp-block-button"><a class="wp-block-button__link has-text-color has-background wp-element-button" href="#" style="border-radius:4px;background-color:#hex;color:#fff">Button Text</a></div>
-<!-- /wp:button -->
-</div>
-<!-- /wp:buttons -->
+SERVICES GRID:
+<section id="services" style="background:#f8f9fa;padding:100px 0;">
+  <div class="container">
+    <p class="section-label" style="text-align:center;color:var(--color-primary);">What We Do</p>
+    <h2 class="section-title" style="text-align:center;margin-bottom:60px;">Our Electrical Services</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;">
+      <!-- Each card: -->
+      <div style="background:#fff;border-radius:12px;padding:36px 28px;box-shadow:0 2px 20px rgba(0,0,0,0.07);transition:transform 0.2s,box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 32px rgba(0,0,0,0.12)'" onmouseout="this.style.transform='';this.style.boxShadow='0 2px 20px rgba(0,0,0,0.07)'">
+        <div style="font-size:40px;margin-bottom:16px;">⚡</div>
+        <h3 style="font-size:20px;font-weight:700;margin-bottom:10px;color:var(--color-secondary);">Residential Electrical</h3>
+        <p style="color:#666;line-height:1.7;font-size:15px;">Panel upgrades, outlet installs, wiring repairs, and everything your home needs.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-SEPARATOR:
-<!-- wp:separator -->
-<hr class="wp-block-separator has-alpha-channel-opacity"/>
-<!-- /wp:separator -->
+WHY CHOOSE US:
+<section style="background:var(--color-secondary);padding:100px 0;color:#fff;">
+  <div class="container">
+    <p class="section-label" style="text-align:center;color:var(--color-accent);">Why League Electric</p>
+    <h2 class="section-title" style="text-align:center;margin-bottom:60px;">Built on Trust & Quality</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:40px;">
+      <div style="text-align:center;">
+        <div style="font-size:48px;margin-bottom:16px;">🏆</div>
+        <h3 style="font-size:22px;font-weight:700;margin-bottom:10px;">Licensed & Insured</h3>
+        <p style="opacity:0.75;line-height:1.7;">All our electricians are fully licensed and carry comprehensive insurance.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-SPACER:
-<!-- wp:spacer {"height":"40px"} -->
-<div style="height:40px" aria-hidden="true" class="wp-block-spacer"></div>
-<!-- /wp:spacer -->
+TESTIMONIALS:
+<section style="background:#fff;padding:100px 0;">
+  <div class="container">
+    <p class="section-label" style="text-align:center;color:var(--color-primary);">Reviews</p>
+    <h2 class="section-title" style="text-align:center;margin-bottom:60px;">What Our Customers Say</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;">
+      <div style="background:#f8f9fa;border-radius:12px;padding:32px;border-left:4px solid var(--color-accent);">
+        <div style="color:var(--color-accent);font-size:20px;margin-bottom:12px;">★★★★★</div>
+        <p style="font-style:italic;line-height:1.7;margin-bottom:16px;color:#444;">"Quote text here..."</p>
+        <strong style="color:var(--color-secondary);">— Customer Name</strong>
+      </div>
+    </div>
+  </div>
+</section>
 
-HTML (raw custom HTML — use for complex elements: forms, nav bars, rating widgets, icon grids):
-<!-- wp:html -->
-<div style="width:100%;box-sizing:border-box;">Your custom HTML here</div>
-<!-- /wp:html -->
+CTA BAND:
+<section style="background:var(--color-accent);padding:100px 0;text-align:center;">
+  <div class="container">
+    <h2 style="font-size:42px;font-weight:800;color:#fff;margin-bottom:16px;">Ready to Get Started?</h2>
+    <p style="font-size:20px;color:rgba(255,255,255,0.85);margin-bottom:36px;max-width:500px;margin-left:auto;margin-right:auto;">Contact us today for a free estimate on any electrical job.</p>
+    <a href="tel:2542667299" class="btn" style="background:#fff;color:var(--color-accent);font-size:18px;padding:18px 44px;">Call (254) 266-7299</a>
+  </div>
+</section>
+
+━━━ footer_html EXAMPLE (footer only — shown on every page) ━━━
+
+<footer style="background:#111;padding:80px 0 40px;color:#fff;">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:60px;margin-bottom:60px;">
+      <div>
+        <img src="__IMG_logo__" alt="Logo" style="height:48px;margin-bottom:20px;filter:brightness(0) invert(1);"/>
+        <p style="opacity:0.6;line-height:1.7;max-width:300px;">Professional electrical services in Waco, TX. Licensed, insured, and trusted.</p>
+      </div>
+      <div>
+        <h4 style="font-weight:700;margin-bottom:20px;font-size:16px;">Services</h4>
+        <div style="display:flex;flex-direction:column;gap:10px;opacity:0.7;">
+          <a href="#" style="color:#fff;font-size:15px;">Residential</a>
+          <a href="#" style="color:#fff;font-size:15px;">Commercial</a>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-weight:700;margin-bottom:20px;font-size:16px;">Contact</h4>
+        <div style="opacity:0.7;font-size:15px;line-height:2;">
+          <p>Waco, TX</p>
+          <p>(254) 266-7299</p>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:32px;text-align:center;opacity:0.5;font-size:14px;">
+      © <?php echo date('Y'); ?> Business Name. All rights reserved.
+    </div>
+  </div>
+</footer>
 
 ━━━ IMAGE PLACEHOLDERS ━━━
-- Every image needs a short unique placeholder_id (e.g. "hero_bg", "logo", "img1")
-- Use "__IMG_placeholder_id__" as the src/url wherever an image appears in blocks
-- List EVERY image in the top-level "images" array with its original_url and placeholder_id
-- The system will upload images to WordPress and replace placeholders with real URLs
-- CRITICAL: original_url must be a direct image file URL (ending in .jpg, .png, .webp, .gif, .svg, etc.)
-- NEVER put a webpage URL (e.g. https://example.com/) as an original_url — only real image file URLs
+- Give every image a short unique placeholder_id (e.g. "hero", "logo", "service1")
+- Use __IMG_placeholder_id__ as the src in <img> tags and CSS background-image values
+- filename must be a safe filename with extension (e.g. "hero-bg.jpg", "logo.png")
+- original_url must be a direct image file URL ending in .jpg, .png, .webp, .gif, or .svg
+- NEVER use a webpage URL (e.g. https://example.com/) as original_url
 
-━━━ LAYOUT PATTERNS ━━━
-
-TOP HEADER BAR (ratings + logo + phone):
-→ wp:group align:"full" (background color matching the bar)
-  → wp:columns align:"wide" (3 equal columns ~33/33/33)
-    Left col: wp:html — star rating and review count, white-space:nowrap on key elements
-    Center col: wp:image with logo
-    Right col: wp:html — phone number and CTA button, white-space:nowrap on key elements
-
-NAVIGATION BAR (horizontal menu):
-→ wp:group align:"full" (background color matching the nav)
-  → wp:html — <nav> with display:flex, flex-wrap:nowrap, all items inline, no text wrapping
-
-HERO SECTION (large background image with text):
-→ wp:cover align:"full" with background image, appropriate dimRatio
-  → wp:heading (main headline, large, bold)
-  → wp:paragraph (supporting text / bullet list)
-  → wp:buttons (call to action)
-  → wp:html (contact form if present, fully inline-styled)
-
-SERVICES / FEATURES GRID (3–4 cards in a row):
-→ wp:group align:"full" (section background)
-  → wp:columns align:"wide" (3 or 4 equal columns)
-    Each column: wp:html for fully styled card
-
-CONTENT BAND (text + image side by side):
-→ wp:group align:"full"
-  → wp:columns align:"wide" (60/40 or 50/50)
-    Left: wp:heading, wp:paragraph
-    Right: wp:image
-
-FOOTER:
-→ wp:group align:"full" (dark background)
-  → wp:columns align:"wide" for multi-column footer
-  → wp:paragraph for copyright
-
-━━━ ACCURACY RULES ━━━
-1. DO NOT add a heading block for the page title — WordPress already displays it from the title field
-2. Start block_content with the FIRST real content section (header bar, nav, or hero)
-3. Add "align":"full" to EVERY top-level wp:group and wp:cover — this is non-negotiable
-4. Add "align":"wide" to EVERY top-level wp:columns
-5. COPY ALL TEXT exactly as shown in the screenshot — headings, body, phone numbers, CTAs
-6. MATCH colors with exact hex values using inline styles on every block
-7. USE wp:cover for ANY section that has a background photo/image
-8. USE wp:group with background-color for solid-color section bands
-9. USE wp:html for complex elements: navigation bars, forms, icon grids, star ratings
-10. In wp:html blocks add white-space:nowrap to phone numbers, button text, and short labels
-11. Recreate the ENTIRE page top to bottom — do NOT skip any section
-12. The block_content JSON string must be properly escaped (quotes as \\", newlines as \\n)
+━━━ DESIGN RULES ━━━
+1. Extract ALL real content: business name, phone, address, services, taglines, testimonials, hours
+2. Use the brand colors from the source site — extract their exact hex values
+3. Make it look stunning — better than the original
+4. Use .container class for width-constrained content inside full-width sections
+5. Every card gets box-shadow and border-radius; hover effects with CSS transitions
+6. Full-width colored sections (no narrow content columns)
+7. Generous padding: 80–100px top/bottom on major sections
+8. Typography: h1 at 52–60px, h2 at 36–42px, body at 16–17px, line-height 1.6–1.7
+9. Do NOT add a page title — WordPress shows it from the title field
+10. header_html, body_html, and footer_html must each be properly JSON-escaped (quotes → \\", newlines → \\n)
+11. The footer copyright year uses: <?php echo date('Y'); ?>
+12. header_html = top bar + nav ONLY | body_html = hero through CTA ONLY | footer_html = footer ONLY
 """
 
 
 def analyze(screenshot_b64: str, html: str, url: str) -> dict:
     """
     Call Claude Vision with the screenshot and HTML.
-    Returns parsed dict: { page_title, block_content, images }
+    Returns parsed dict: { theme_name, theme_slug, global_css, body_html, images, ... }
     """
     truncated_html = _truncate_html(html)
 
-    print("[ai] Sending page to Claude for analysis...")
+    print("[ai] Sending page to Claude for theme design...")
 
     raw_chunks = []
     with _client.messages.stream(
@@ -206,10 +280,12 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
                     {
                         "type": "text",
                         "text": (
-                            f"Page URL: {url}\n\n"
+                            f"Source site URL: {url}\n\n"
                             f"HTML (truncated to {_HTML_LIMIT} chars):\n"
                             f"{truncated_html}\n\n"
-                            "Generate the Gutenberg block markup now."
+                            "Study this site's content and brand, then design a beautiful, modern "
+                            "WordPress theme inspired by it. Make it stunning — better than the original. "
+                            "Extract all real content and elevate the design."
                         ),
                     },
                 ],
@@ -242,9 +318,9 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
         "cost_usd": cost_usd,
     }
 
-    block_content = result.get("block_content", "")
-    block_count = len(re.findall(r"<!-- wp:", block_content))
-    print(f"[ai] Analysis complete. Blocks: {block_count} | Images: {len(result.get('images', []))}")
+    sections = result.get("sections", [])
+    images = result.get("images", [])
+    print(f"[ai] Theme design complete. Sections: {len(sections)} | Images: {len(images)}")
     return result
 
 
@@ -259,23 +335,20 @@ def _truncate_html(html: str) -> str:
 
 def _parse_json(text: str) -> dict:
     """Extract JSON from the model response, even if wrapped in markdown or truncated."""
-    # Strip markdown code fences if present
     text = re.sub(r"^```[a-z]*\n?", "", text.strip(), flags=re.MULTILINE)
     text = re.sub(r"```$", "", text.strip(), flags=re.MULTILINE)
     text = text.strip()
 
-    # First try: parse as-is
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Second try: response was truncated — attempt to close open structures
     repaired = _repair_truncated_json(text)
     try:
         result = json.loads(repaired)
         print("[ai] WARNING: Claude response was truncated — JSON was repaired. "
-              "The page may be incomplete. Consider running again.")
+              "The theme may be incomplete. Consider running again.")
         return result
     except json.JSONDecodeError as e:
         raise ValueError(
@@ -285,10 +358,7 @@ def _parse_json(text: str) -> dict:
 
 
 def _repair_truncated_json(text: str) -> str:
-    """
-    Close any open JSON arrays/objects so a truncated response can be parsed.
-    Walks the string tracking open brackets/braces and appends closing tokens.
-    """
+    """Close any open JSON structures so a truncated response can be parsed."""
     stack = []
     in_string = False
     escape_next = False
@@ -311,11 +381,7 @@ def _repair_truncated_json(text: str) -> str:
             if stack:
                 stack.pop()
 
-    # Remove trailing comma before we close
     stripped = text.rstrip().rstrip(",")
-
-    # Close all open structures in reverse order
     for opener in reversed(stack):
         stripped += "}" if opener == "{" else "]"
-
     return stripped

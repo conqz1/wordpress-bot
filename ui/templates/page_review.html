@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>WordPress Site Bot — Review Theme</title>
+  <title>WordPress Site Bot — Review Page</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,6 +26,13 @@
     header .badge {
       background: #2d3148;
       color: #94a3b8;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    header .mode-badge {
+      background: #1e3a5f;
+      color: #60a5fa;
       font-size: 11px;
       padding: 3px 8px;
       border-radius: 20px;
@@ -69,7 +76,6 @@
     }
 
     .page-title { font-size: 17px; font-weight: 600; color: #f1f5f9; line-height: 1.4; word-break: break-word; }
-    .page-desc  { font-size: 12px; color: #64748b; margin-top: 6px; line-height: 1.5; }
     .page-url   { font-size: 12px; color: #7c6af7; margin-top: 4px; word-break: break-all; }
 
     .stats { display: flex; gap: 16px; }
@@ -80,28 +86,8 @@
       padding: 10px 12px;
       text-align: center;
     }
-    .stat .num { font-size: 22px; font-weight: 700; color: #7c6af7; }
+    .stat .num { font-size: 22px; font-weight: 700; color: #60a5fa; }
     .stat .lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
-
-    /* Color swatches */
-    .color-swatches { display: flex; gap: 10px; flex-wrap: wrap; }
-    .swatch {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #0f1117;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 12px;
-      color: #94a3b8;
-    }
-    .swatch-dot {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
 
     /* Section list */
     .section-list { display: flex; flex-direction: column; gap: 6px; }
@@ -118,7 +104,7 @@
     .section-item .dot {
       width: 6px; height: 6px;
       border-radius: 50%;
-      background: #7c6af7;
+      background: #60a5fa;
       flex-shrink: 0;
     }
 
@@ -138,7 +124,7 @@
     }
     .btn:hover { opacity: .88; }
     .btn:active { transform: scale(.98); }
-    .btn-approve { background: linear-gradient(135deg, #6d56f5, #7c6af7); color: #fff; }
+    .btn-approve { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; }
     .btn-skip    { background: #2d3148; color: #94a3b8; }
 
     /* Status overlay */
@@ -151,7 +137,7 @@
     #status-overlay.visible { display: flex; }
     .spinner {
       width: 40px; height: 40px;
-      border: 3px solid #2d3148; border-top-color: #7c6af7;
+      border: 3px solid #2d3148; border-top-color: #60a5fa;
       border-radius: 50%; animation: spin .8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -163,6 +149,7 @@
 <header>
   <span class="logo">WordPress Site Bot</span>
   <span class="badge">Review &amp; Approve</span>
+  <span class="mode-badge">Page Builder</span>
 </header>
 
 <div class="layout">
@@ -174,11 +161,8 @@
   <div class="detail-panel">
 
     <div class="card">
-      <h3>Theme Info</h3>
+      <h3>Page Info</h3>
       <div class="page-title">{{ title }}</div>
-      {% if description %}
-      <div class="page-desc">{{ description }}</div>
-      {% endif %}
       <div class="page-url">{{ url }}</div>
     </div>
 
@@ -195,20 +179,6 @@
         </div>
       </div>
     </div>
-
-    {% if colors %}
-    <div class="card">
-      <h3>Brand Colors</h3>
-      <div class="color-swatches">
-        {% for color in colors %}
-        <div class="swatch">
-          <div class="swatch-dot" style="background:{{ color }};"></div>
-          {{ color }}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
 
     <div class="card">
       <h3>Claude API Usage</h3>
@@ -244,7 +214,7 @@
 
     <div class="actions">
       <button class="btn btn-approve" onclick="decide('approve')">
-        Approve &amp; Build Theme .zip
+        Create Page on WordPress (Draft)
       </button>
       <button class="btn btn-skip" onclick="decide('skip')">
         Skip this page
@@ -266,7 +236,7 @@
 
     overlay.classList.add('visible');
     msg.textContent = choice === 'approve'
-      ? 'Downloading images and building theme zip…'
+      ? 'Uploading images and creating WordPress draft page…'
       : 'Skipping…';
 
     await fetch('/decide', {
@@ -276,7 +246,7 @@
     });
 
     msg.textContent = choice === 'approve'
-      ? 'Done! Check your terminal for the .zip location.'
+      ? 'Done! Check your terminal for the page URL.'
       : 'Skipped. You can close this tab.';
   }
 </script>

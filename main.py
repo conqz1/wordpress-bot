@@ -4,22 +4,22 @@ WordPress Site Bot — Entry point.
 
 Usage:
     python main.py --url https://example.com
-    python main.py --url https://example.com --status publish
+    python main.py --url https://example.com --output ~/Desktop
 """
 import argparse
+import os
 import sys
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrape a URL and recreate it as a Gutenberg page in WordPress."
+        description="Scrape a URL and generate an installable WordPress theme inspired by it."
     )
-    parser.add_argument("--url", required=True, help="URL of the page to clone")
+    parser.add_argument("--url", required=True, help="URL of the site to analyze")
     parser.add_argument(
-        "--status",
-        choices=["draft", "publish"],
-        default="draft",
-        help="WordPress page status (default: draft)",
+        "--output",
+        default="created-themes",
+        help="Directory to save the theme .zip file (default: created-themes/)",
     )
     args = parser.parse_args()
 
@@ -28,13 +28,16 @@ def main():
         print(f"ERROR: URL must start with http/https — got: {url}")
         sys.exit(1)
 
+    output_dir = os.path.expanduser(args.output)
+    os.makedirs(output_dir, exist_ok=True)
+
     print("\n=== WordPress Site Bot ===\n")
 
     # 1. Scrape
     from scraper.page import scrape
     page = scrape(url)
 
-    # 2. Analyze with Claude Vision
+    # 2. Analyze with Claude Vision → theme design
     from ai.analyzer import analyze
     analysis = analyze(page.screenshot_b64, page.html, url)
 
@@ -43,42 +46,28 @@ def main():
     decision = run_approval_ui(page, analysis)
 
     if decision != "approve":
-        print("\n[main] Page skipped. Nothing was created in WordPress.")
+        print("\n[main] Skipped. No theme was created.")
         sys.exit(0)
 
-    print("\n[main] Approved! Processing images and creating page...")
+    print("\n[main] Approved! Building theme...")
 
-    # 4. Download + upload images
-    from wordpress.media import upload_images, replace_image_placeholders
-    _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".bmp", ".ico", ".avif")
-    images = [
-        img for img in analysis.get("images", [])
-        if any(img.get("original_url", "").lower().split("?")[0].endswith(ext) for ext in _IMAGE_EXTS)
-    ]
-    block_content = analysis.get("block_content", "")
-    if images:
-        print(f"[main] Uploading {len(images)} image(s) to WordPress media library...")
-        mapping = upload_images(images)
-        block_content = replace_image_placeholders(block_content, mapping)
+    # 4. Build theme zip (downloads images, generates PHP files, packages zip)
+    from theme.builder import build_theme_zip
+    zip_path = build_theme_zip(analysis, output_dir=output_dir)
 
-    # 5. Create page via WP REST API
-    from wordpress.api import create_page, get_edit_url
-    page_title = analysis.get("page_title") or page.title
-    wp_page = create_page(
-        title=page_title,
-        block_content=block_content,
-        status=args.status,
-    )
+    theme_name = analysis.get("theme_name", "Custom Theme")
+    theme_slug = analysis.get("theme_slug", "custom-theme")
 
-    edit_url = get_edit_url(wp_page["id"])
-    live_url = wp_page.get("link", "")
-
-    print("\n" + "=" * 50)
-    print(f"  Page created: {page_title}")
-    print(f"  Status:       {args.status}")
-    print(f"  Live URL:     {live_url}")
-    print(f"  Edit in WP:   {edit_url}")
-    print("=" * 50 + "\n")
+    print("\n" + "=" * 54)
+    print(f"  Theme:    {theme_name}")
+    print(f"  Slug:     {theme_slug}")
+    print(f"  Saved to: {zip_path}")
+    print()
+    print("  To install:")
+    print("  1. WP Admin → Appearance → Themes → Add New")
+    print("  2. Upload Theme → select the .zip file")
+    print("  3. Install → Activate")
+    print("=" * 54 + "\n")
 
 
 if __name__ == "__main__":
