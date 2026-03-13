@@ -33,20 +33,26 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, nothing 
 
 ━━━ content_html RULES ━━━
 
-1. Start with a <style> block defining shared classes:
-   .wp-cont   { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
-   .wp-btn    { display: inline-block; padding: 14px 32px; border-radius: 6px; font-weight: 600;
-                font-size: 16px; cursor: pointer; text-decoration: none;
-                transition: opacity 0.2s, transform 0.1s; }
+1. Start with a <style> block containing EXACTLY these classes (copy verbatim, add more as needed):
+   /* Hide WordPress page title — page content manages its own header */
+   h1.entry-title, h1.page-title, .entry-header h1, .page-header h1,
+   .wp-block-post-title, header.entry-header { display: none !important; }
+   /* Full-width breakout — escapes any theme content-width constraint */
+   .wp-fw { width: 100vw; margin-left: calc(50% - 50vw); }
+   .wp-cont { max-width: 1100px; margin: 0 auto; padding: 0 40px; }
+   .wp-btn { display: inline-block; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px; cursor: pointer; text-decoration: none; transition: opacity 0.2s, transform 0.1s; }
    .wp-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-   .wp-title  { font-size: 38px; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
-   .wp-label  { font-size: 12px; font-weight: 600; text-transform: uppercase;
-                letter-spacing: 0.1em; margin-bottom: 12px; }
+   .wp-title { font-size: 38px; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+   .wp-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
    * { box-sizing: border-box; }
    img { max-width: 100%; height: auto; }
 
-2. Use full-width <section> elements with colored backgrounds and 80–100px top/bottom padding
-3. Use .wp-cont inside each section to constrain content width
+2. EVERY <section> MUST have the class "wp-fw" — this is critical for full-width layout:
+   <section class="wp-fw" style="background:#f8f9fa; padding:100px 0;">
+     <div class="wp-cont">...</div>
+   </section>
+
+3. Use .wp-cont inside each section to constrain content width to 1100px
 4. DO NOT include <html>, <head>, <body>, <nav>, <footer>, or structural page wrapper tags
 5. DO NOT add a heading for the page title — WordPress shows the title from the page title field
 6. Reference images as __IMG_placeholder_id__ in src attributes
@@ -60,6 +66,9 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, nothing 
 4. Every card: box-shadow, border-radius, and hover transition
 5. Typography: h2 at 36–42px, h3 at 20–24px, body at 16–17px, line-height 1.6–1.7
 6. Generous padding: 80–100px top/bottom on major sections
+7. NEVER use a 2-column image+text side-by-side layout. Images fail to load and leave blank columns.
+   Instead: put the image above or below the text, or use it as a full-width background.
+   For team members, use a 3-column card grid (photo on top, info below) — NOT a 2-column split.
 
 ━━━ IMAGE PLACEHOLDERS ━━━
 - Give every image a short unique placeholder_id (e.g. "hero", "service1", "team1")
@@ -71,7 +80,7 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, nothing 
 ━━━ SECTION PATTERNS ━━━
 
 PAGE HERO BANNER (not a full homepage hero — a tasteful page header):
-<section style="background:linear-gradient(135deg,#1a2a4a 0%,#2d4a7a 100%);padding:80px 0;color:#fff;">
+<section class="wp-fw" style="background:linear-gradient(135deg,#1a2a4a 0%,#2d4a7a 100%);padding:80px 0;color:#fff;">
   <div class="wp-cont">
     <p class="wp-label" style="color:#7cb9ff;opacity:1;">What We Offer</p>
     <h2 class="wp-title" style="font-size:48px;color:#fff;">Our Services</h2>
@@ -82,7 +91,7 @@ PAGE HERO BANNER (not a full homepage hero — a tasteful page header):
 </section>
 
 FEATURE / SERVICES GRID:
-<section style="background:#f8f9fa;padding:100px 0;">
+<section class="wp-fw" style="background:#f8f9fa;padding:100px 0;">
   <div class="wp-cont">
     <h2 class="wp-title" style="text-align:center;margin-bottom:60px;">What We Do</h2>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;">
@@ -100,7 +109,7 @@ FEATURE / SERVICES GRID:
 </section>
 
 CTA BAND:
-<section style="background:#e84c3d;padding:80px 0;text-align:center;">
+<section class="wp-fw" style="background:#e84c3d;padding:80px 0;text-align:center;">
   <div class="wp-cont">
     <h2 style="font-size:40px;font-weight:800;color:#fff;margin-bottom:16px;">Ready to Get Started?</h2>
     <p style="font-size:18px;color:rgba(255,255,255,0.85);margin-bottom:32px;max-width:500px;margin-left:auto;margin-right:auto;">
