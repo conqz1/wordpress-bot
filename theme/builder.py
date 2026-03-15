@@ -78,19 +78,43 @@ def build_theme_zip(analysis: dict, output_dir: str = ".") -> str:
         "front-page.php": _front_page_php(body_html),
     }
 
-    # Package zip
-    zip_filename = f"{theme_slug}.zip"
-    zip_path = os.path.join(output_dir, zip_filename)
+    # Write theme files to disk (so the editor can read/modify them)
+    theme_dir = os.path.join(output_dir, theme_slug)
+    os.makedirs(theme_dir, exist_ok=True)
+    images_dir = os.path.join(theme_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filename, content in files.items():
-            zf.writestr(f"{theme_slug}/{filename}", content)
-            print(f"[theme] Packed: {filename}")
-        for filename, data in image_data.items():
-            zf.writestr(f"{theme_slug}/images/{filename}", data)
-            print(f"[theme] Packed: images/{filename}")
+    for filename, content in files.items():
+        with open(os.path.join(theme_dir, filename), "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"[theme] Saved: {filename}")
+    for filename, data in image_data.items():
+        with open(os.path.join(images_dir, filename), "wb") as f:
+            f.write(data)
+        print(f"[theme] Saved: images/{filename}")
 
+    # Package zip from the on-disk folder
+    zip_path = _zip_theme_dir(theme_dir, output_dir, theme_slug)
     print(f"[theme] Created: {zip_path}")
+    return zip_path
+
+
+def rezip_theme(theme_dir: str) -> str:
+    """Re-package an existing theme folder into a zip. Returns zip path."""
+    theme_dir = os.path.abspath(theme_dir)
+    theme_slug = os.path.basename(theme_dir)
+    output_dir = os.path.dirname(theme_dir)
+    return _zip_theme_dir(theme_dir, output_dir, theme_slug)
+
+
+def _zip_theme_dir(theme_dir: str, output_dir: str, theme_slug: str) -> str:
+    zip_path = os.path.join(output_dir, f"{theme_slug}.zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, filenames in os.walk(theme_dir):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                arcname = os.path.join(theme_slug, os.path.relpath(full_path, theme_dir))
+                zf.write(full_path, arcname)
     return zip_path
 
 

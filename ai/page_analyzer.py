@@ -65,10 +65,29 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, nothing 
 3. Make it look stunning — better than the original
 4. Every card: box-shadow, border-radius, and hover transition
 5. Typography: h2 at 36–42px, h3 at 20–24px, body at 16–17px, line-height 1.6–1.7
-6. Generous padding: 80–100px top/bottom on major sections
-7. NEVER use a 2-column image+text side-by-side layout. Images fail to load and leave blank columns.
+6. Body text paragraphs: max-width 65ch for readable line length
+7. Generous padding: 80–100px top/bottom on major sections
+8. NEVER use a 2-column image+text side-by-side layout. Images fail to load and leave blank columns.
    Instead: put the image above or below the text, or use it as a full-width background.
    For team members, use a 3-column card grid (photo on top, info below) — NOT a 2-column split.
+9. Heading hierarchy: h2 for section titles, h3 for cards/items — never skip levels
+10. All non-hero images: add loading="lazy" attribute
+11. CTA placement: after the hero banner + after the main content section
+
+━━━ UX & ACCESSIBILITY STANDARDS (Non-Negotiable) ━━━
+Add these rules inside the <style> block (append to the base classes):
+
+/* WCAG AA contrast — never light-on-light or dark-on-dark */
+/* All hover transitions 150–300ms — already in .wp-btn */
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+/* Keyboard focus */
+a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+/* Smooth scroll */
+html { scroll-behavior: smooth; }
+
+ALL interactive elements (buttons, links): cursor: pointer; min-height: 44px (touch target).
+Contrast check: body text #333+ on white bg, white text only on dark/colored backgrounds (not light gray).
 
 ━━━ IMAGE PLACEHOLDERS ━━━
 - Give every image a short unique placeholder_id (e.g. "hero", "service1", "team1")

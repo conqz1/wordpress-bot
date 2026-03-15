@@ -1,12 +1,18 @@
 WORDPRESS SITE BOT
 ==================
-Two tools in one:
+Four tools:
 
-  THEME BUILDER (main.py) — Scrapes a URL, analyzes it with Claude Vision, and generates
-  a beautiful installable WordPress theme (.zip) inspired by the site.
+  THEME BUILDER  (main.py)    — Scrapes a URL and generates a full installable WordPress
+                                 theme (.zip) inspired by the site. Saved to created-themes/
 
-  PAGE BUILDER (page.py) — Scrapes any page URL, redesigns the content with Claude Vision,
-  and creates it as a draft WordPress page on your site via the REST API.
+  PAGE BUILDER   (page.py)    — Scrapes any page URL, redesigns the content with Claude
+                                 Vision, and creates it as a draft WordPress page via REST API.
+
+  THEME EDITOR   (edit.py)    — Chat with Claude to surgically edit a generated theme.
+                                 Re-zips automatically after each change.
+
+  PAGE EDITOR    (wp-edit.py) — Chat with Claude to edit any live WordPress page.
+                                 Changes pushed live via REST API after each request.
 
 
 FIRST-TIME SETUP
@@ -43,6 +49,7 @@ RUNNING
 2. Run:
    python3 main.py --url https://example.com
 
+   Themes are saved to created-themes/ by default.
    Optional — save zip to a specific folder (e.g. Desktop):
    python3 main.py --url https://example.com --output ~/Desktop
 
@@ -110,6 +117,93 @@ PUBLISHING THE PAGE
 OPTIONS
 -------
 --url     (required) The URL of the page to copy
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THEME EDITOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chat with Claude in the terminal to make surgical edits to a generated theme.
+Changes are applied directly to the theme folder and re-zipped automatically.
+
+RUNNING
+-------
+1. Activate the virtual environment:
+   source venv/bin/activate
+
+2. Run (theme must have been built with main.py first):
+   python3 edit.py --theme league-electric-theme
+
+3. Type change requests in plain English:
+   You: change the primary color to deep navy blue
+   You: make the hero headline bigger
+   You: add a thin red border under the nav bar
+   You: exit
+
+4. After each change:
+   - The relevant theme file is edited surgically (only what you asked for)
+   - The theme folder is re-zipped automatically
+   - Re-upload the zip to WordPress to see the changes live
+
+OPTIONS
+-------
+--theme   Theme folder name inside created-themes/, or a full path
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE EDITOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Chat with Claude to edit any live page on your WordPress site.
+Claude sees a screenshot of the page + its HTML, makes surgical edits,
+and pushes each change live via the REST API immediately.
+
+Works on any WordPress page — not just ones created by this bot.
+
+RUNNING
+-------
+1. Activate the virtual environment:
+   source venv/bin/activate
+
+2. Run:
+   python3 wp-edit.py --url https://automai.ai/meet-the-team
+
+3. Type change requests in plain English:
+   You: change the heading "The People Behind League Electric" to "Our Expert Team"
+   You: make the hero banner background darker — use #1a2040
+   You: change the hero image to https://images.unsplash.com/photo-xyz.jpg
+   You: exit
+
+4. Each change is pushed live to WordPress immediately after Claude applies it.
+
+IMAGE CHANGES
+-------------
+- Provide a direct image URL:  Claude replaces the src and uploads it to your WP media library
+- Provide a local file path:   python will upload the file first, then use the hosted WP URL
+  Example: "change the hero image to ~/Desktop/new-photo.jpg"
+
+SPECIAL COMMANDS
+----------------
+refresh screenshot   — take a new screenshot so Claude can see recent changes
+
+OPTIONS
+-------
+--url   (required) Full URL of the WordPress page to edit
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESIGN QUALITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Both tools use design guidelines sourced from UI UX Pro Max (github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+incorporated directly into the AI prompts. Every generated theme and page automatically enforces:
+
+  - WCAG AA contrast (4.5:1 minimum ratio)
+  - Transition timing: 150–300ms for all hover/interactive effects
+  - prefers-reduced-motion: animations disabled for users who prefer it
+  - Keyboard focus: visible :focus-visible outline on all interactive elements
+  - Touch targets: minimum 44×44px on all buttons and links
+  - Responsive: breakpoints at 480px and 768px (grid stacking, nav collapse)
+  - Smooth scroll, lazy-loaded images, proper heading hierarchy (h1 → h2 → h3)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

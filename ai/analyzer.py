@@ -244,10 +244,35 @@ CTA BAND:
 6. Full-width colored sections (no narrow content columns)
 7. Generous padding: 80–100px top/bottom on major sections
 8. Typography: h1 at 52–60px, h2 at 36–42px, body at 16–17px, line-height 1.6–1.7
-9. Do NOT add a page title — WordPress shows it from the title field
-10. header_html, body_html, and footer_html must each be properly JSON-escaped (quotes → \\", newlines → \\n)
-11. The footer copyright year uses: <?php echo date('Y'); ?>
-12. header_html = top bar + nav ONLY | body_html = hero through CTA ONLY | footer_html = footer ONLY
+9. Body text paragraphs: max-width 65ch for readable line length
+10. Do NOT add a page title — WordPress shows it from the title field
+11. header_html, body_html, and footer_html must each be properly JSON-escaped (quotes → \\", newlines → \\n)
+12. The footer copyright year uses: <?php echo date('Y'); ?>
+13. header_html = top bar + nav ONLY | body_html = hero through CTA ONLY | footer_html = footer ONLY
+
+━━━ UX & ACCESSIBILITY STANDARDS (Non-Negotiable) ━━━
+These 7 rules must be met in EVERY theme — treat them as hard requirements:
+
+1. CONTRAST — All text must meet WCAG AA (4.5:1 ratio). Never put light gray text on white, or dark text on dark bg.
+2. TRANSITIONS — All hover/interactive effects: transition duration 150–300ms. Never exceed 300ms for UI feedback.
+3. REDUCED MOTION — Include in global_css:
+   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+4. FOCUS STATES — All buttons and links must have visible :focus-visible outline:
+   a:focus-visible, button:focus-visible, [role="button"]:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 3px; }
+5. CURSOR — Every button, link, and clickable element: cursor: pointer
+6. TOUCH TARGETS — All interactive elements minimum 44×44px (use min-height/min-width or padding)
+7. RESPONSIVE — Include these breakpoints in global_css for the nav (collapse to hamburger) and grids (stack to 1 col):
+   @media (max-width: 768px) { .container { padding: 0 20px; } /* nav stacks, grids go to 1 col */ }
+   @media (max-width: 480px) { /* fine-tune for small phones */ }
+
+ADDITIONAL UX RULES:
+- Add html { scroll-behavior: smooth; } to global_css
+- All non-hero images: add loading="lazy" attribute
+- Heading hierarchy: h1 in hero only, h2 for section headings, h3 for cards
+- Sticky nav: add padding-top to the first content section equal to nav height to prevent overlap
+- Trust signals in hero: ratings, certifications, years in business — visible above the fold
+- CTA placement: hero section + after features/services + footer
+- Empty/error states: if a grid has placeholder items, add real content or leave them out
 """
 
 

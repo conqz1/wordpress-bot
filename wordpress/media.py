@@ -55,6 +55,35 @@ def replace_image_placeholders(block_content: str, mapping: dict[str, dict]) -> 
     return block_content
 
 
+def upload_local_file(file_path: str) -> tuple[str, int]:
+    """
+    Upload a local image file to the WordPress media library.
+    Returns (wp_url, attachment_id).
+    """
+    file_path = os.path.expanduser(file_path)
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    filename = os.path.basename(file_path)
+    content_type, _ = mimetypes.guess_type(file_path)
+    content_type = content_type or "image/jpeg"
+
+    with open(file_path, "rb") as f:
+        upload_resp = requests.post(
+            _MEDIA_ENDPOINT,
+            auth=_AUTH,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "User-Agent": _HEADERS["User-Agent"],
+            },
+            files={"file": (filename, f, content_type)},
+            timeout=30,
+        )
+    upload_resp.raise_for_status()
+    data = upload_resp.json()
+    return data["source_url"], data["id"]
+
+
 def _download_and_upload(url: str) -> tuple[str, int]:
     """Download image from *url*, upload to WP media library, return (wp_url, attachment_id)."""
     resp = requests.get(url, headers=_HEADERS, timeout=20, stream=True)

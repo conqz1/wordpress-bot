@@ -45,6 +45,71 @@ def create_page(
     return page
 
 
+def get_front_page_id() -> int:
+    """Return the WordPress page ID set as the static front page (0 if not set)."""
+    resp = requests.get(
+        f"{config.WP_SITE_URL}/wp-json/wp/v2/settings",
+        auth=_AUTH,
+        headers=_HEADERS,
+        timeout=15,
+    )
+    if resp.status_code not in (200, 201):
+        _raise_api_error(resp)
+    return resp.json().get("page_on_front", 0)
+
+
+def get_page_by_id(page_id: int) -> dict:
+    """Fetch a WordPress page by its ID. Returns full page object including raw content."""
+    resp = requests.get(
+        f"{_PAGES_ENDPOINT}/{page_id}",
+        auth=_AUTH,
+        headers=_HEADERS,
+        params={"context": "edit"},
+        timeout=15,
+    )
+    if resp.status_code not in (200, 201):
+        _raise_api_error(resp)
+    return resp.json()
+
+
+def get_page_by_slug(slug: str) -> dict:
+    """
+    Fetch a WordPress page by its slug.
+    Returns the full page object including raw content (requires auth).
+    Raises RuntimeError if not found.
+    """
+    resp = requests.get(
+        _PAGES_ENDPOINT,
+        auth=_AUTH,
+        headers=_HEADERS,
+        params={"slug": slug, "context": "edit"},
+        timeout=15,
+    )
+    if resp.status_code not in (200, 201):
+        _raise_api_error(resp)
+    pages = resp.json()
+    if not pages:
+        raise RuntimeError(f"No WordPress page found with slug '{slug}'.")
+    return pages[0]
+
+
+def update_page(page_id: int, content_html: str) -> dict:
+    """
+    Update a WordPress page's content.
+    Returns the updated page object.
+    """
+    resp = requests.post(
+        f"{_PAGES_ENDPOINT}/{page_id}",
+        auth=_AUTH,
+        headers=_HEADERS,
+        json={"content": content_html},
+        timeout=30,
+    )
+    if resp.status_code not in (200, 201):
+        _raise_api_error(resp)
+    return resp.json()
+
+
 def get_edit_url(page_id: int) -> str:
     """Return the WordPress block editor URL for the given page."""
     return f"{config.WP_SITE_URL}/wp-admin/post.php?post={page_id}&action=edit"
