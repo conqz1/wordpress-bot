@@ -21,6 +21,11 @@ def main():
         default="created-themes",
         help="Directory to save the theme .zip file (default: created-themes/)",
     )
+    parser.add_argument(
+        "--style",
+        default=None,
+        help='Optional design style directive, e.g. "luxury, dark, editorial" or "playful, colorful, Gen-Z"',
+    )
     args = parser.parse_args()
 
     url = args.url.strip()
@@ -39,7 +44,7 @@ def main():
 
     # 2. Analyze with Claude Vision → theme design
     from ai.analyzer import analyze
-    analysis = analyze(page.screenshot_b64, page.html, url)
+    analysis = analyze(page.screenshot_b64, page.html, url, style=args.style)
 
     # 3. Show approval UI
     from ui.server import run_approval_ui

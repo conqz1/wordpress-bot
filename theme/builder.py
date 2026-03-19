@@ -5,6 +5,7 @@ them as an installable .zip file.
 import os
 import re
 import zipfile
+from typing import Optional
 
 import requests
 
@@ -67,10 +68,16 @@ def build_theme_zip(analysis: dict, output_dir: str = ".") -> str:
         body_html   = body_html.replace(f"__IMG_{placeholder_id}__", php_uri)
         footer_html = footer_html.replace(f"__IMG_{placeholder_id}__", php_uri)
 
+    # Extract Customizer fields then replace markers with PHP get_theme_mod() calls
+    customizer_fields = _extract_customizer_fields(header_html + body_html + footer_html)
+    header_html = _replace_customizer_markers(header_html)
+    body_html   = _replace_customizer_markers(body_html)
+    footer_html = _replace_customizer_markers(footer_html)
+
     # Generate theme files
     files = {
         "style.css":      _style_css(theme_name, theme_slug, description, global_css),
-        "functions.php":  _functions_php(theme_slug),
+        "functions.php":  _functions_php(theme_slug, customizer_fields),
         "header.php":     _header_php(header_html),
         "footer.php":     _footer_php(footer_html),
         "index.php":      _index_php(),
@@ -165,8 +172,42 @@ a {{
 """
 
 
-def _functions_php(theme_slug: str) -> str:
+def _functions_php(theme_slug: str, customizer_fields: Optional[list] = None) -> str:
     fn = theme_slug.replace("-", "_")
+    customizer_fields = customizer_fields or []
+
+    # Build Customizer registration PHP
+    if customizer_fields:
+        field_registrations = []
+        for field in customizer_fields:
+            name    = field["name"]
+            default = field["default"].replace("'", "\\'")
+            label   = field["label"]
+            field_registrations.append(f"""
+    $wp_customize->add_setting( '{name}', array(
+        'default'           => '{default}',
+        'sanitize_callback' => 'sanitize_text_field',
+        'transport'         => 'refresh',
+    ) );
+    $wp_customize->add_control( '{name}', array(
+        'label'   => '{label}',
+        'section' => '{fn}_content',
+        'type'    => 'text',
+    ) );""")
+
+        customizer_block = f"""
+function {fn}_customize_register( $wp_customize ) {{
+    $wp_customize->add_section( '{fn}_content', array(
+        'title'    => 'Site Content',
+        'priority' => 30,
+    ) );
+{''.join(field_registrations)}
+}}
+add_action( 'customize_register', '{fn}_customize_register' );
+"""
+    else:
+        customizer_block = ""
+
     return f"""<?php
 /**
  * {theme_slug} functions and definitions
@@ -192,7 +233,7 @@ function {fn}_scripts() {{
     );
 }}
 add_action( 'wp_enqueue_scripts', '{fn}_scripts' );
-"""
+{customizer_block}"""
 
 
 def _header_php(header_html: str) -> str:
@@ -280,6 +321,30 @@ get_footer();
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_customizer_fields(html: str) -> list[dict]:
+    """Extract {{field_name|default}} markers and return list of field dicts."""
+    seen: set[str] = set()
+    fields: list[dict] = []
+    for name, default in re.findall(r'\{\{([a-z0-9_]+)\|([^}]*)\}\}', html):
+        if name not in seen:
+            seen.add(name)
+            fields.append({
+                "name":    name,
+                "default": default,
+                "label":   name.replace("_", " ").title(),
+            })
+    return fields
+
+
+def _replace_customizer_markers(html: str) -> str:
+    """Replace {{field_name|default}} with PHP get_theme_mod() calls."""
+    def replacer(m: re.Match) -> str:
+        name    = m.group(1)
+        default = m.group(2).replace("'", "\\'")
+        return f"<?php echo esc_html( get_theme_mod( '{name}', '{default}' ) ); ?>"
+    return re.sub(r'\{\{([a-z0-9_]+)\|([^}]*)\}\}', replacer, html)
+
 
 def _slugify(text: str) -> str:
     """Convert text to a filesystem-safe WordPress theme slug."""

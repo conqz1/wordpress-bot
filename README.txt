@@ -1,18 +1,11 @@
 WORDPRESS SITE BOT
 ==================
-Four tools:
+One tool:
 
-  THEME BUILDER  (main.py)    — Scrapes a URL and generates a full installable WordPress
-                                 theme (.zip) inspired by the site. Saved to created-themes/
+  THEME BUILDER  (main.py) — Scrapes a URL and generates a full installable WordPress
+                              theme (.zip) inspired by the site. Saved to created-themes/
 
-  PAGE BUILDER   (page.py)    — Scrapes any page URL, redesigns the content with Claude
-                                 Vision, and creates it as a draft WordPress page via REST API.
-
-  THEME EDITOR   (edit.py)    — Chat with Claude to surgically edit a generated theme.
-                                 Re-zips automatically after each change.
-
-  PAGE EDITOR    (wp-edit.py) — Chat with Claude to edit any live WordPress page.
-                                 Changes pushed live via REST API after each request.
+  (Page Builder, Theme Editor, and Page Editor are archived in archive/ for future use.)
 
 
 FIRST-TIME SETUP
@@ -78,124 +71,21 @@ OPTIONS
 -------
 --url     (required) The URL to analyze
 --output  Directory to save the .zip (default: created-themes/)
+--style   Optional design style directive. Tells Claude the aesthetic to apply.
+          If omitted, Claude decides the style based on the source site (default behavior).
 
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PAGE BUILDER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Scrapes any page URL, redesigns the content as a beautiful full-width
-HTML page, uploads images to your WP media library, and creates the
-page as a draft on your WordPress site.
-
-The active theme provides the navigation and footer — the page builder
-generates only the page body content (hero banner, feature grids, CTAs, etc.).
-
-RUNNING
--------
-1. Activate the virtual environment (every new terminal session):
-   source venv/bin/activate
-
-2. Run:
-   python3 page.py --url https://example.com/about
-
-3. A browser window opens showing a screenshot and a summary of the
-   page Claude designed (sections, images, API cost).
-
-4. Click "Create Page on WordPress (Draft)" to create, or "Skip" to cancel.
-
-5. On approval, the bot will:
-   - Upload all images to your WordPress media library
-   - Create the page as a draft on your WP site
-   - Print the draft page URL in the terminal
-
-PUBLISHING THE PAGE
--------------------
-1. WP Admin → Pages → find the draft
-2. Click Edit → Publish
-
-OPTIONS
--------
---url     (required) The URL of the page to copy
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-THEME EDITOR
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Chat with Claude in the terminal to make surgical edits to a generated theme.
-Changes are applied directly to the theme folder and re-zipped automatically.
-
-RUNNING
--------
-1. Activate the virtual environment:
-   source venv/bin/activate
-
-2. Run (theme must have been built with main.py first):
-   python3 edit.py --theme league-electric-theme
-
-3. Type change requests in plain English:
-   You: change the primary color to deep navy blue
-   You: make the hero headline bigger
-   You: add a thin red border under the nav bar
-   You: exit
-
-4. After each change:
-   - The relevant theme file is edited surgically (only what you asked for)
-   - The theme folder is re-zipped automatically
-   - Re-upload the zip to WordPress to see the changes live
-
-OPTIONS
--------
---theme   Theme folder name inside created-themes/, or a full path
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PAGE EDITOR
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Chat with Claude to edit any live page on your WordPress site.
-Claude sees a screenshot of the page + its HTML, makes surgical edits,
-and pushes each change live via the REST API immediately.
-
-Works on any WordPress page — not just ones created by this bot.
-
-RUNNING
--------
-1. Activate the virtual environment:
-   source venv/bin/activate
-
-2. Run:
-   python3 wp-edit.py --url https://automai.ai/meet-the-team
-
-3. Type change requests in plain English:
-   You: change the heading "The People Behind League Electric" to "Our Expert Team"
-   You: make the hero banner background darker — use #1a2040
-   You: change the hero image to https://images.unsplash.com/photo-xyz.jpg
-   You: exit
-
-4. Each change is pushed live to WordPress immediately after Claude applies it.
-
-IMAGE CHANGES
--------------
-- Provide a direct image URL:  Claude replaces the src and uploads it to your WP media library
-- Provide a local file path:   python will upload the file first, then use the hosted WP URL
-  Example: "change the hero image to ~/Desktop/new-photo.jpg"
-
-SPECIAL COMMANDS
-----------------
-refresh screenshot   — take a new screenshot so Claude can see recent changes
-
-OPTIONS
--------
---url   (required) Full URL of the WordPress page to edit
+          Examples:
+            python3 main.py --url https://example.com --style "luxury, dark, editorial"
+            python3 main.py --url https://example.com --style "playful, colorful, Gen-Z"
+            python3 main.py --url https://example.com --style "minimal, corporate, law firm"
+            python3 main.py --url https://example.com --style "bold, industrial, contractor"
+            python3 main.py --url https://example.com --style "warm, approachable, therapist"
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DESIGN QUALITY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Both tools use design guidelines sourced from UI UX Pro Max (github.com/nextlevelbuilder/ui-ux-pro-max-skill)
-incorporated directly into the AI prompts. Every generated theme and page automatically enforces:
+Every generated theme automatically enforces:
 
   - WCAG AA contrast (4.5:1 minimum ratio)
   - Transition timing: 150–300ms for all hover/interactive effects
@@ -209,8 +99,6 @@ incorporated directly into the AI prompts. Every generated theme and page automa
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Claude redesigns the site/page — it's inspired by the source, not a pixel-perfect copy.
+- Claude redesigns the site — it's inspired by the source, not a pixel-perfect copy.
 - If an image fails to download, the bot falls back to the original URL.
-- Re-run either command to generate a fresh result.
-- The Page Builder requires your WordPress credentials in .env (WP_SITE_URL, WP_USERNAME,
-  WP_APP_PASSWORD). The Theme Builder does not.
+- Re-run the command to generate a fresh result at any time.

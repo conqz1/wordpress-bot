@@ -235,6 +235,26 @@ CTA BAND:
 - original_url must be a direct image file URL ending in .jpg, .png, .webp, .gif, or .svg
 - NEVER use a webpage URL (e.g. https://example.com/) as original_url
 
+━━━ EDITABLE CONTENT (WordPress Customizer) ━━━
+Wrap any text that the site owner should be able to edit themselves using the syntax:
+  {{field_name|Default text here}}
+
+Rules:
+- field_name must be snake_case, unique, and descriptive (e.g. hero_headline, contact_phone)
+- Default text is the actual content you extracted from the source site
+- Only wrap visible text content — NOT HTML attributes, CSS values, or URLs
+- Wrap these types of content: headlines, taglines, subheadings, paragraph descriptions,
+  phone numbers, addresses, business hours, CTA button labels, testimonial quotes, service names
+- Do NOT wrap: nav link labels, section IDs, CSS class names, image alt text
+
+Examples:
+  <h1>{{hero_headline|Expert Electricians in Waco, TX}}</h1>
+  <p>{{hero_subtext|Fast, reliable electrical services for homes and businesses.}}</p>
+  <a href="tel:2542667299">{{contact_phone|(254) 266-7299}}</a>
+  <h3>{{service_1_title|Residential Electrical}}</h3>
+  <p>{{service_1_desc|Panel upgrades, outlet installs, wiring repairs, and everything your home needs.}}</p>
+  <strong>{{reviewer_1_name|— Sarah M.}}</strong>
+
 ━━━ DESIGN RULES ━━━
 1. Extract ALL real content: business name, phone, address, services, taglines, testimonials, hours
 2. Use the brand colors from the source site — extract their exact hex values
@@ -276,7 +296,7 @@ ADDITIONAL UX RULES:
 """
 
 
-def analyze(screenshot_b64: str, html: str, url: str) -> dict:
+def analyze(screenshot_b64: str, html: str, url: str, style: str = None) -> dict:
     """
     Call Claude Vision with the screenshot and HTML.
     Returns parsed dict: { theme_name, theme_slug, global_css, body_html, images, ... }
@@ -298,7 +318,7 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/png",
+                            "media_type": "image/jpeg",
                             "data": screenshot_b64,
                         },
                     },
@@ -311,6 +331,12 @@ def analyze(screenshot_b64: str, html: str, url: str) -> dict:
                             "Study this site's content and brand, then design a beautiful, modern "
                             "WordPress theme inspired by it. Make it stunning — better than the original. "
                             "Extract all real content and elevate the design."
+                            + (
+                                f"\n\nSTYLE DIRECTIVE: The client has requested this specific aesthetic: "
+                                f'"{style}". Apply this style throughout — colors, typography, layout, '
+                                f"and tone should all reflect it while still using the site's real content and brand."
+                                if style else ""
+                            )
                         ),
                     },
                 ],

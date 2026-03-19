@@ -3,13 +3,41 @@ Fetches a webpage: full-page screenshot + raw HTML.
 Uses Playwright (headless Chromium).
 """
 import base64
+import io
 import re
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
+from PIL import Image
 from playwright.sync_api import sync_playwright
 
 import config
+
+_MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB — safely under the 5 MB API limit
+
+
+def _compress_screenshot(path: str) -> str:
+    """Return a base64 string of the screenshot, resized/compressed to stay under the API limit."""
+    img = Image.open(path).convert("RGB")
+
+    # Cap both dimensions to API limits (8000px max per side)
+    max_width, max_height = 1280, 7000
+    ratio = min(max_width / img.width, max_height / img.height, 1.0)
+    if ratio < 1.0:
+        img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+
+    # Try progressively lower JPEG quality until under the limit
+    for quality in (85, 70, 55, 40):
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        if buf.tell() <= _MAX_IMAGE_BYTES:
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    # Last resort: halve the image dimensions
+    img = img.resize((img.width // 2, img.height // 2), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=40, optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 @dataclass
@@ -17,7 +45,7 @@ class ScrapedPage:
     url: str
     title: str
     html: str
-    screenshot_b64: str          # base64-encoded PNG
+    screenshot_b64: str          # base64-encoded JPEG (compressed)
     screenshot_path: str         # saved to disk
     image_urls: list[str] = field(default_factory=list)
 
@@ -44,7 +72,11 @@ def scrape(url: str, output_dir: str = "tmp") -> ScrapedPage:
         page = context.new_page()
 
         print(f"[scraper] Loading {url} ...")
-        page.goto(url, wait_until="networkidle", timeout=30_000)
+        try:
+            page.goto(url, wait_until="load", timeout=30_000)
+        except Exception:
+            # Some sites never fully settle — grab what loaded so far
+            pass
 
         # Scroll to trigger lazy-load content
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -59,8 +91,7 @@ def scrape(url: str, output_dir: str = "tmp") -> ScrapedPage:
 
         browser.close()
 
-    with open(screenshot_path, "rb") as f:
-        screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
+    screenshot_b64 = _compress_screenshot(screenshot_path)
 
     image_urls = _extract_image_urls(html, url)
 
