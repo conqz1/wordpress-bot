@@ -16,6 +16,12 @@ import config
 _MAX_IMAGE_BYTES = 4 * 1024 * 1024  # 4 MB — safely under the 5 MB API limit
 
 
+def compress_image(path: str) -> str:
+    """Return a base64 string of any image file, resized/compressed to stay under the API limit.
+    Public alias so main.py can use it for user-provided mockup photos."""
+    return _compress_screenshot(path)
+
+
 def _compress_screenshot(path: str) -> str:
     """Return a base64 string of the screenshot, resized/compressed to stay under the API limit."""
     img = Image.open(path).convert("RGB")

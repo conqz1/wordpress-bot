@@ -83,6 +83,9 @@ def build_theme_zip(analysis: dict, output_dir: str = ".") -> str:
         "index.php":      _index_php(),
         "page.php":       _page_php(),
         "front-page.php": _front_page_php(body_html),
+        "single.php":     _single_php(),
+        "archive.php":    _archive_php(),
+        "home.php":       _home_php(),
     }
 
     # Write theme files to disk (so the editor can read/modify them)
@@ -99,6 +102,18 @@ def build_theme_zip(analysis: dict, output_dir: str = ".") -> str:
         with open(os.path.join(images_dir, filename), "wb") as f:
             f.write(data)
         print(f"[theme] Saved: images/{filename}")
+
+    # Save theme metadata for use by add_page.py
+    import json as _json
+    meta = {
+        "theme_name":      theme_name,
+        "theme_slug":      theme_slug,
+        "primary_color":   analysis.get("primary_color", ""),
+        "secondary_color": analysis.get("secondary_color", ""),
+        "accent_color":    analysis.get("accent_color", ""),
+    }
+    with open(os.path.join(theme_dir, "theme-meta.json"), "w", encoding="utf-8") as f:
+        _json.dump(meta, f, indent=2)
 
     # Package zip from the on-disk folder
     zip_path = _zip_theme_dir(theme_dir, output_dir, theme_slug)
@@ -315,6 +330,321 @@ def _front_page_php(body_html: str) -> str:
 get_header();
 ?>
 {body_html}
+<?php
+get_footer();
+"""
+
+
+def _single_php() -> str:
+    return """<?php
+/**
+ * The single post template.
+ * Used for individual blog posts.
+ */
+get_header();
+?>
+<main id="main" style="padding:80px 0;min-height:60vh;">
+  <div class="container" style="max-width:780px;">
+    <?php while ( have_posts() ) : the_post(); ?>
+
+    <article <?php post_class(); ?>>
+
+      <?php if ( has_post_thumbnail() ) : ?>
+        <div style="margin-bottom:40px;border-radius:12px;overflow:hidden;">
+          <?php the_post_thumbnail( 'full', array( 'style' => 'width:100%;height:420px;object-fit:cover;display:block;' ) ); ?>
+        </div>
+      <?php endif; ?>
+
+      <header style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;font-size:13px;color:#888;margin-bottom:16px;flex-wrap:wrap;">
+          <span><?php echo esc_html( get_the_date() ); ?></span>
+          <span style="opacity:0.4;">·</span>
+          <span><?php the_author(); ?></span>
+          <?php
+          $cats = get_the_category();
+          if ( $cats ) :
+          ?>
+          <span style="opacity:0.4;">·</span>
+          <span style="background:var(--color-primary,#333);color:#fff;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">
+            <?php echo esc_html( $cats[0]->name ); ?>
+          </span>
+          <?php endif; ?>
+        </div>
+        <h1 style="font-size:clamp(28px,5vw,46px);font-weight:800;line-height:1.2;color:var(--color-secondary,#1a1a1a);">
+          <?php the_title(); ?>
+        </h1>
+      </header>
+
+      <div class="entry-content" style="font-size:17px;line-height:1.8;color:#333;">
+        <?php the_content(); ?>
+      </div>
+
+      <footer style="margin-top:60px;padding-top:32px;border-top:1px solid #eee;">
+        <?php
+        $tags = get_the_tags();
+        if ( $tags ) : ?>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;">
+            <?php foreach ( $tags as $tag ) : ?>
+              <a href="<?php echo esc_url( get_tag_link( $tag ) ); ?>"
+                 style="background:#f0f0f0;padding:4px 12px;border-radius:20px;font-size:13px;color:#555;transition:background 0.2s;"
+                 onmouseover="this.style.background='var(--color-primary,#333)';this.style.color='#fff'"
+                 onmouseout="this.style.background='#f0f0f0';this.style.color='#555'">
+                #<?php echo esc_html( $tag->name ); ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+
+        <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <?php
+          $prev = get_previous_post();
+          $next = get_next_post();
+          ?>
+          <?php if ( $prev ) : ?>
+            <a href="<?php echo esc_url( get_permalink( $prev ) ); ?>"
+               style="flex:1;min-width:180px;padding:20px;border:1px solid #eee;border-radius:10px;font-size:14px;color:var(--color-primary,#333);transition:border-color 0.2s;"
+               onmouseover="this.style.borderColor='var(--color-primary,#333)'"
+               onmouseout="this.style.borderColor='#eee'">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.5;margin-bottom:6px;">← Previous</div>
+              <strong><?php echo esc_html( get_the_title( $prev ) ); ?></strong>
+            </a>
+          <?php endif; ?>
+          <?php if ( $next ) : ?>
+            <a href="<?php echo esc_url( get_permalink( $next ) ); ?>"
+               style="flex:1;min-width:180px;padding:20px;border:1px solid #eee;border-radius:10px;text-align:right;font-size:14px;color:var(--color-primary,#333);transition:border-color 0.2s;"
+               onmouseover="this.style.borderColor='var(--color-primary,#333)'"
+               onmouseout="this.style.borderColor='#eee'">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.5;margin-bottom:6px;">Next →</div>
+              <strong><?php echo esc_html( get_the_title( $next ) ); ?></strong>
+            </a>
+          <?php endif; ?>
+        </div>
+      </footer>
+
+    </article>
+
+    <?php endwhile; ?>
+  </div>
+</main>
+<?php
+get_footer();
+"""
+
+
+def _archive_php() -> str:
+    return """<?php
+/**
+ * The archive / blog index template.
+ * Used for the Blog page, category pages, tag pages, date archives, etc.
+ */
+get_header();
+?>
+<main id="main" style="padding:80px 0;min-height:60vh;">
+  <div class="container">
+
+    <header style="text-align:center;margin-bottom:64px;">
+      <?php if ( is_category() ) : ?>
+        <p class="section-label" style="color:var(--color-primary,#333);">Category</p>
+        <h1 class="section-title"><?php single_cat_title(); ?></h1>
+        <?php if ( category_description() ) : ?>
+          <p style="color:#666;max-width:540px;margin:16px auto 0;line-height:1.7;"><?php echo category_description(); ?></p>
+        <?php endif; ?>
+      <?php elseif ( is_tag() ) : ?>
+        <p class="section-label" style="color:var(--color-primary,#333);">Tag</p>
+        <h1 class="section-title"><?php single_tag_title(); ?></h1>
+      <?php elseif ( is_author() ) : ?>
+        <p class="section-label" style="color:var(--color-primary,#333);">Author</p>
+        <h1 class="section-title"><?php the_author(); ?></h1>
+      <?php else : ?>
+        <p class="section-label" style="color:var(--color-primary,#333);">Our Blog</p>
+        <h1 class="section-title"><?php bloginfo( 'name' ); ?> — Latest Posts</h1>
+      <?php endif; ?>
+    </header>
+
+    <?php if ( have_posts() ) : ?>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:32px;">
+        <?php while ( have_posts() ) : the_post(); ?>
+
+          <article <?php post_class( 'blog-card' ); ?>
+                   style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.07);transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;"
+                   onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 32px rgba(0,0,0,0.12)'"
+                   onmouseout="this.style.transform='';this.style.boxShadow='0 2px 20px rgba(0,0,0,0.07)'">
+
+            <?php if ( has_post_thumbnail() ) : ?>
+              <a href="<?php the_permalink(); ?>" style="display:block;overflow:hidden;height:200px;">
+                <?php the_post_thumbnail( 'medium_large', array(
+                  'style' => 'width:100%;height:100%;object-fit:cover;transition:transform .4s;',
+                  'onmouseover' => "this.style.transform='scale(1.04)'",
+                  'onmouseout'  => "this.style.transform='scale(1)'"
+                ) ); ?>
+              </a>
+            <?php else : ?>
+              <a href="<?php the_permalink(); ?>"
+                 style="display:block;height:200px;background:var(--color-primary,#333);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:48px;opacity:.3;">📝</span>
+              </a>
+            <?php endif; ?>
+
+            <div style="padding:28px;flex:1;display:flex;flex-direction:column;">
+              <div style="font-size:12px;color:#999;margin-bottom:12px;">
+                <?php echo esc_html( get_the_date() ); ?>
+                <?php
+                $cats = get_the_category();
+                if ( $cats ) : ?>
+                  &nbsp;·&nbsp;
+                  <a href="<?php echo esc_url( get_category_link( $cats[0]->term_id ) ); ?>"
+                     style="color:var(--color-primary,#333);font-weight:600;">
+                    <?php echo esc_html( $cats[0]->name ); ?>
+                  </a>
+                <?php endif; ?>
+              </div>
+
+              <h2 style="font-size:20px;font-weight:700;line-height:1.35;margin-bottom:12px;color:var(--color-secondary,#1a1a1a);">
+                <a href="<?php the_permalink(); ?>"
+                   style="color:inherit;transition:color .2s;"
+                   onmouseover="this.style.color='var(--color-primary,#333)'"
+                   onmouseout="this.style.color='inherit'">
+                  <?php the_title(); ?>
+                </a>
+              </h2>
+
+              <p style="color:#666;font-size:15px;line-height:1.7;flex:1;">
+                <?php echo wp_trim_words( get_the_excerpt(), 22, '…' ); ?>
+              </p>
+
+              <a href="<?php the_permalink(); ?>"
+                 class="btn btn-primary"
+                 style="margin-top:20px;display:inline-block;text-align:center;">
+                Read More
+              </a>
+            </div>
+
+          </article>
+
+        <?php endwhile; ?>
+      </div>
+
+      <div style="margin-top:64px;display:flex;justify-content:center;gap:8px;">
+        <?php
+        the_posts_pagination( array(
+          'mid_size'           => 2,
+          'prev_text'          => '← Newer',
+          'next_text'          => 'Older →',
+          'before_page_number' => '',
+        ) );
+        ?>
+      </div>
+
+    <?php else : ?>
+      <div style="text-align:center;padding:80px 0;color:#999;">
+        <div style="font-size:56px;margin-bottom:24px;">📭</div>
+        <h2 style="font-size:24px;font-weight:600;margin-bottom:12px;color:#555;">No posts yet</h2>
+        <p>Check back soon for new content.</p>
+      </div>
+    <?php endif; ?>
+
+  </div>
+</main>
+<?php
+get_footer();
+"""
+
+
+def _home_php() -> str:
+    return """<?php
+/**
+ * home.php — Blog / posts pillar listing page.
+ * WordPress uses this when a static front page is set and a Posts page
+ * is configured under Settings → Reading.
+ * Lists all posts newest-first with pagination.
+ */
+get_header();
+?>
+<main id="main" style="padding:80px 0;min-height:60vh;">
+  <div class="container">
+
+    <header style="text-align:center;margin-bottom:64px;">
+      <p class="section-label" style="color:var(--color-primary,#333);">Our Blog</p>
+      <h1 class="section-title"><?php bloginfo( 'name' ); ?> — Latest Posts</h1>
+    </header>
+
+    <?php if ( have_posts() ) : ?>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:32px;">
+        <?php while ( have_posts() ) : the_post(); ?>
+
+          <article <?php post_class(); ?>
+                   style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 20px rgba(0,0,0,0.07);transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;"
+                   onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 32px rgba(0,0,0,0.12)'"
+                   onmouseout="this.style.transform='';this.style.boxShadow='0 2px 20px rgba(0,0,0,0.07)'">
+
+            <?php if ( has_post_thumbnail() ) : ?>
+              <a href="<?php the_permalink(); ?>" style="display:block;overflow:hidden;height:200px;">
+                <?php the_post_thumbnail( 'medium_large', array( 'style' => 'width:100%;height:100%;object-fit:cover;', 'loading' => 'lazy' ) ); ?>
+              </a>
+            <?php else : ?>
+              <a href="<?php the_permalink(); ?>"
+                 style="display:block;height:200px;background:var(--color-primary,#333);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:48px;opacity:.3;">📝</span>
+              </a>
+            <?php endif; ?>
+
+            <div style="padding:28px;flex:1;display:flex;flex-direction:column;">
+              <div style="font-size:12px;color:#999;margin-bottom:12px;">
+                <?php echo esc_html( get_the_date() ); ?>
+                <?php $cats = get_the_category(); if ( $cats ) : ?>
+                  &nbsp;·&nbsp;
+                  <a href="<?php echo esc_url( get_category_link( $cats[0]->term_id ) ); ?>"
+                     style="color:var(--color-primary,#333);font-weight:600;">
+                    <?php echo esc_html( $cats[0]->name ); ?>
+                  </a>
+                <?php endif; ?>
+              </div>
+
+              <h2 style="font-size:20px;font-weight:700;line-height:1.35;margin-bottom:12px;color:var(--color-secondary,#1a1a1a);">
+                <a href="<?php the_permalink(); ?>"
+                   style="color:inherit;transition:color .2s;"
+                   onmouseover="this.style.color='var(--color-primary,#333)'"
+                   onmouseout="this.style.color='inherit'">
+                  <?php the_title(); ?>
+                </a>
+              </h2>
+
+              <p style="color:#666;font-size:15px;line-height:1.7;flex:1;">
+                <?php echo wp_trim_words( get_the_excerpt(), 22, '…' ); ?>
+              </p>
+
+              <a href="<?php the_permalink(); ?>"
+                 class="btn btn-primary"
+                 style="margin-top:20px;display:inline-block;text-align:center;">
+                Read More
+              </a>
+            </div>
+
+          </article>
+
+        <?php endwhile; ?>
+      </div>
+
+      <div style="margin-top:64px;display:flex;justify-content:center;gap:8px;">
+        <?php
+        the_posts_pagination( array(
+          'mid_size'  => 2,
+          'prev_text' => '← Newer',
+          'next_text' => 'Older →',
+        ) );
+        ?>
+      </div>
+
+    <?php else : ?>
+      <div style="text-align:center;padding:80px 0;color:#999;">
+        <div style="font-size:56px;margin-bottom:24px;">📭</div>
+        <h2 style="font-size:24px;font-weight:600;margin-bottom:12px;color:#555;">No posts yet</h2>
+        <p>Check back soon for new content.</p>
+      </div>
+    <?php endif; ?>
+
+  </div>
+</main>
 <?php
 get_footer();
 """

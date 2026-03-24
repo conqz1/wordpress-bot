@@ -235,17 +235,22 @@ CTA BAND:
 - original_url must be a direct image file URL ending in .jpg, .png, .webp, .gif, or .svg
 - NEVER use a webpage URL (e.g. https://example.com/) as original_url
 
-━━━ EDITABLE CONTENT (WordPress Customizer) ━━━
-Wrap any text that the site owner should be able to edit themselves using the syntax:
+━━━ EDITABLE CONTENT (WordPress Customizer) — NON-NEGOTIABLE ━━━
+EVERY piece of visible text on the site MUST use this syntax — no exceptions:
   {{field_name|Default text here}}
+
+This is a hard business requirement. The site owner must be able to edit ALL text
+through WordPress without touching code. If any text is hardcoded, it is a defect.
 
 Rules:
 - field_name must be snake_case, unique, and descriptive (e.g. hero_headline, contact_phone)
 - Default text is the actual content you extracted from the source site
 - Only wrap visible text content — NOT HTML attributes, CSS values, or URLs
-- Wrap these types of content: headlines, taglines, subheadings, paragraph descriptions,
-  phone numbers, addresses, business hours, CTA button labels, testimonial quotes, service names
-- Do NOT wrap: nav link labels, section IDs, CSS class names, image alt text
+- MUST wrap ALL of: headlines, taglines, subheadings, paragraph descriptions,
+  phone numbers, addresses, business hours, CTA button labels, testimonial quotes,
+  service names, service descriptions, stats/numbers, reviewer names, review text,
+  footer taglines, copyright text, nav CTA label, top bar text, badge labels
+- Do NOT wrap: nav link labels (Home, About, etc.), section IDs, CSS class names, image alt text
 
 Examples:
   <h1>{{hero_headline|Expert Electricians in Waco, TX}}</h1>
@@ -254,6 +259,9 @@ Examples:
   <h3>{{service_1_title|Residential Electrical}}</h3>
   <p>{{service_1_desc|Panel upgrades, outlet installs, wiring repairs, and everything your home needs.}}</p>
   <strong>{{reviewer_1_name|— Sarah M.}}</strong>
+  <p>{{stat_1_label|Years Experience}}</p>
+  <div>{{stat_1_value|45+}}</div>
+  <p>{{footer_tagline|Professional electrical services in Waco, TX. Licensed, insured, and trusted.}}</p>
 
 ━━━ DESIGN RULES ━━━
 1. Extract ALL real content: business name, phone, address, services, taglines, testimonials, hours
@@ -298,12 +306,44 @@ ADDITIONAL UX RULES:
 
 def analyze(screenshot_b64: str, html: str, url: str, style: str = None) -> dict:
     """
-    Call Claude Vision with the screenshot and HTML.
+    Call Claude Vision with the screenshot and HTML (or image mockup).
     Returns parsed dict: { theme_name, theme_slug, global_css, body_html, images, ... }
-    """
-    truncated_html = _truncate_html(html)
 
-    print("[ai] Sending page to Claude for theme design...")
+    When url starts with '[Local image:' there is no source website — Claude will
+    infer the business and design entirely from the image.
+    """
+    is_image_mode = url.startswith("[Local image:")
+
+    if is_image_mode:
+        user_text = (
+            "The client has provided a photo of their paper design mockup (no existing website). "
+            "Study the image carefully — extract the business name, colors, content, layout, "
+            "and brand identity from what is shown. Design a complete, professional WordPress theme "
+            "based on these designs. Infer any missing details (phone, address, services) from context "
+            "and use realistic placeholder text in the {{field_name|default}} format so the client "
+            "can fill them in via the WordPress Customizer.\n\n"
+            "Remember: EVERY piece of visible text must use the {{field_name|default}} syntax."
+        )
+    else:
+        truncated_html = _truncate_html(html)
+        user_text = (
+            f"Source site URL: {url}\n\n"
+            f"HTML (truncated to {_HTML_LIMIT} chars):\n"
+            f"{truncated_html}\n\n"
+            "Study this site's content and brand, then design a beautiful, modern "
+            "WordPress theme inspired by it. Make it stunning — better than the original. "
+            "Extract all real content and elevate the design. "
+            "Remember: EVERY piece of visible text must use the {{field_name|default}} syntax."
+        )
+
+    if style:
+        user_text += (
+            f"\n\nSTYLE DIRECTIVE: The client has requested this specific aesthetic: "
+            f'"{style}". Apply this style throughout — colors, typography, layout, '
+            f"and tone should all reflect it."
+        )
+
+    print("[ai] Sending to Claude for theme design...")
 
     raw_chunks = []
     with _client.messages.stream(
@@ -324,20 +364,7 @@ def analyze(screenshot_b64: str, html: str, url: str, style: str = None) -> dict
                     },
                     {
                         "type": "text",
-                        "text": (
-                            f"Source site URL: {url}\n\n"
-                            f"HTML (truncated to {_HTML_LIMIT} chars):\n"
-                            f"{truncated_html}\n\n"
-                            "Study this site's content and brand, then design a beautiful, modern "
-                            "WordPress theme inspired by it. Make it stunning — better than the original. "
-                            "Extract all real content and elevate the design."
-                            + (
-                                f"\n\nSTYLE DIRECTIVE: The client has requested this specific aesthetic: "
-                                f'"{style}". Apply this style throughout — colors, typography, layout, '
-                                f"and tone should all reflect it while still using the site's real content and brand."
-                                if style else ""
-                            )
-                        ),
+                        "text": user_text,
                     },
                 ],
             }

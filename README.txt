@@ -1,11 +1,17 @@
 WORDPRESS SITE BOT
 ==================
-One tool:
+Two tools:
 
-  THEME BUILDER  (main.py) — Scrapes a URL and generates a full installable WordPress
-                              theme (.zip) inspired by the site. Saved to created-themes/
+  THEME BUILDER  (main.py)    — Generates a full installable WordPress theme (.zip) from
+                                 a URL or a local image (paper mockup / hand-drawn design).
+                                 Saved to created-themes/
 
-  (Page Builder, Theme Editor, and Page Editor are archived in archive/ for future use.)
+  PAGE BUILDER   (add_page.py) — Adds a new inner page (About, Contact, Services, etc.)
+                                 to an existing WordPress site — no theme re-upload needed.
+                                 Claude designs the page to match the installed theme, then
+                                 pushes it to WordPress via the REST API as Gutenberg blocks.
+
+  (Page Editor and Theme Editor are archived in archive/ for future use.)
 
 
 FIRST-TIME SETUP
@@ -39,8 +45,11 @@ RUNNING
 1. Activate the virtual environment (every new terminal session):
    source venv/bin/activate
 
-2. Run:
+2. Run with a URL (existing website):
    python3 main.py --url https://example.com
+
+   Or run with a local image (paper mockup / client design scan):
+   python3 main.py --image ~/Desktop/client-mockup.jpg
 
    Themes are saved to created-themes/ by default.
    Optional — save zip to a specific folder (e.g. Desktop):
@@ -69,17 +78,68 @@ New pages you create will automatically inherit the nav and footer.
 
 OPTIONS
 -------
---url     (required) The URL to analyze
+--url     URL of the site to analyze (mutually exclusive with --image)
+--image   Path to a local image file — use when the client has no existing website
+          and provides paper mockups, sketches, or scanned designs instead
 --output  Directory to save the .zip (default: created-themes/)
 --style   Optional design style directive. Tells Claude the aesthetic to apply.
-          If omitted, Claude decides the style based on the source site (default behavior).
+          If omitted, Claude decides the style based on the source (default behavior).
 
           Examples:
             python3 main.py --url https://example.com --style "luxury, dark, editorial"
             python3 main.py --url https://example.com --style "playful, colorful, Gen-Z"
-            python3 main.py --url https://example.com --style "minimal, corporate, law firm"
-            python3 main.py --url https://example.com --style "bold, industrial, contractor"
-            python3 main.py --url https://example.com --style "warm, approachable, therapist"
+            python3 main.py --image ~/Desktop/mockup.jpg --style "warm, approachable, therapist"
+            python3 main.py --image ~/Desktop/mockup.jpg --style "bold, industrial, contractor"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGE BUILDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Adds a new inner page to an existing WordPress site without touching the theme.
+Claude designs the page body (header/footer come from the installed theme), then
+pushes it to WordPress as Gutenberg wp:html blocks — one block per section so
+the client can click into each section and edit text directly in the block editor.
+
+RUNNING
+-------
+1. Make sure the theme is already installed on the WordPress site.
+
+2. Activate the virtual environment:
+   source venv/bin/activate
+
+3. Add a page (auto-detects the most recently built theme):
+   python3 add_page.py --page "About"
+   python3 add_page.py --page "Contact"
+   python3 add_page.py --page "Services"
+
+   Reference an existing page to draw real content from:
+   python3 add_page.py --page "About" --url https://example.com/about
+
+   Target a specific theme (if you have multiple in created-themes/):
+   python3 add_page.py --page "Services" --theme-slug my-theme-slug
+
+   Publish immediately instead of saving as draft:
+   python3 add_page.py --page "About" --status publish
+
+4. The bot will:
+   - Load brand colors and CSS variables from the installed theme
+   - Optionally scrape and read the reference URL
+   - Design the page with Claude (matching the existing theme's style)
+   - Download and upload any images to the WordPress Media Library
+   - Push the page to WordPress (default: draft so you can review first)
+   - Print the WP Admin edit URL
+
+5. Review the draft in WP Admin, then publish when ready.
+   Add the page to your nav: WP Admin → Appearance → Menus.
+
+OPTIONS
+-------
+--page          Page name, e.g. "About", "Contact", "Services"  (required)
+--url           Optional reference URL to draw real content from
+--theme-slug    Theme slug to match (auto-detects most recent if omitted)
+--status        WordPress page status: draft (default) or publish
+--style         Optional style directive, e.g. "warm, minimal"
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

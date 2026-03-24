@@ -4,6 +4,7 @@ WordPress Site Bot — Entry point.
 
 Usage:
     python main.py --url https://example.com
+    python main.py --image ~/Desktop/client-mockup.jpg
     python main.py --url https://example.com --output ~/Desktop
 """
 import argparse
@@ -13,9 +14,15 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrape a URL and generate an installable WordPress theme inspired by it."
+        description="Generate an installable WordPress theme from a URL or a local image mockup."
     )
-    parser.add_argument("--url", required=True, help="URL of the site to analyze")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--url", default=None, help="URL of the site to analyze")
+    source.add_argument(
+        "--image",
+        default=None,
+        help="Path to a local image file (e.g. photo of a paper design mockup)",
+    )
     parser.add_argument(
         "--output",
         default="created-themes",
@@ -28,23 +35,40 @@ def main():
     )
     args = parser.parse_args()
 
-    url = args.url.strip()
-    if not url.startswith("http"):
-        print(f"ERROR: URL must start with http/https — got: {url}")
-        sys.exit(1)
-
     output_dir = os.path.expanduser(args.output)
     os.makedirs(output_dir, exist_ok=True)
 
     print("\n=== WordPress Site Bot ===\n")
 
-    # 1. Scrape
-    from scraper.page import scrape
-    page = scrape(url)
+    if args.url:
+        url = args.url.strip()
+        if not url.startswith("http"):
+            print(f"ERROR: URL must start with http/https — got: {url}")
+            sys.exit(1)
+
+        # 1a. Scrape URL
+        from scraper.page import scrape
+        page = scrape(url)
+        screenshot_b64 = page.screenshot_b64
+        html = page.html
+        source_label = url
+
+    else:
+        # 1b. Load local image (paper mockup / hand-drawn design)
+        image_path = os.path.expanduser(args.image)
+        if not os.path.exists(image_path):
+            print(f"ERROR: Image file not found: {image_path}")
+            sys.exit(1)
+
+        print(f"[main] Loading image: {image_path}")
+        from scraper.page import compress_image
+        screenshot_b64 = compress_image(image_path)
+        html = ""
+        source_label = f"[Local image: {os.path.basename(image_path)}]"
 
     # 2. Analyze with Claude Vision → theme design
     from ai.analyzer import analyze
-    analysis = analyze(page.screenshot_b64, page.html, url, style=args.style)
+    analysis = analyze(screenshot_b64, html, source_label, style=args.style)
 
     # 3. Show approval UI
     from ui.server import run_approval_ui
